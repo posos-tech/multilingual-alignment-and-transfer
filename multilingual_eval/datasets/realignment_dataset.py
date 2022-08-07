@@ -350,9 +350,7 @@ class RealignmentCollator:
         }
 
 
-def get_realignment_dataloader(
-    tokenizer, translation_dataset, left_lang, right_lang, dico_path, batch_size: int
-):
+def get_realignment_dataset(tokenizer, translation_dataset, left_lang, right_lang, dico_path):
     mapper = DatasetMapperForRealignment(tokenizer, dico_path, left_lang, right_lang)
 
     translation_dataset = (
@@ -360,6 +358,15 @@ def get_realignment_dataloader(
         .filter(lambda x: len(x["alignment_left_ids"]) > 0)
         .shuffle()
         .with_format("torch")
+    )
+    return translation_dataset
+
+
+def get_realignment_dataloader(
+    tokenizer, translation_dataset, left_lang, right_lang, dico_path, batch_size: int
+):
+    translation_dataset = get_realignment_dataset(
+        tokenizer, translation_dataset, left_lang, right_lang, dico_path
     )
 
     return DataLoader(

@@ -220,96 +220,84 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
 
         self.realignment_coef = realignment_coef
 
-    # def forward(
-    #     self,
-    #     input_ids: Optional[torch.Tensor] = None,
-    #     attention_mask: Optional[torch.Tensor] = None,
-    #     token_type_ids: Optional[torch.Tensor] = None,
-    #     position_ids: Optional[torch.Tensor] = None,
-    #     head_mask: Optional[torch.Tensor] = None,
-    #     inputs_embeds: Optional[torch.Tensor] = None,
-    #     labels: Optional[torch.Tensor] = None,
-    #     output_attentions: Optional[bool] = None,
-    #     output_hidden_states: Optional[bool] = None,
-    #     return_dict: Optional[bool] = None,
-    #     # sentences from left language
-    #     left_input_ids=None,
-    #     left_attention_mask=None,
-    #     left_token_type_ids=None,
-    #     left_position_ids=None,
-    #     left_head_mask=None,
-    #     left_inputs_embeds=None,
-    #     # sentences from right language
-    #     right_input_ids=None,
-    #     right_attention_mask=None,
-    #     right_token_type_ids=None,
-    #     right_position_ids=None,
-    #     right_head_mask=None,
-    #     right_inputs_embeds=None,
-    #     # alignment labels
-    #     alignment_batch_ids=None,
-    #     alignment_left_ids=None,
-    #     alignment_right_ids=None,
-    # ):
-    #     if input_ids is not None:
-    #         classification_res = super(BertForTokenClassificationWithRealignment, self).forward(
-    #             input_ids,
-    #             attention_mask,
-    #             token_type_ids,
-    #             position_ids,
-    #             head_mask,
-    #             inputs_embeds,
-    #             labels,
-    #             output_attentions,
-    #             output_hidden_states,
-    #             return_dict=True,
-    #         )
-    #     else:
-    #         classification_res = None
-    #     if left_input_ids is not None:
-    #         realignment_loss = compute_realignment_loss(
-    #             self.bert,
-    #             self.realignment_transformation,
-    #             self.realignment_layers,
-    #             self.strong_alignment,
-    #             self.realignment_temperature,
-    #             self.realignment_coef,
-    #             left_input_ids,
-    #             left_attention_mask,
-    #             left_token_type_ids,
-    #             left_position_ids,
-    #             left_head_mask,
-    #             left_inputs_embeds,
-    #             right_input_ids,
-    #             right_attention_mask,
-    #             right_token_type_ids,
-    #             right_position_ids,
-    #             right_head_mask,
-    #             right_inputs_embeds,
-    #             alignment_batch_ids,
-    #             alignment_left_ids,
-    #             alignment_right_ids,
-    #         )
-    #     else:
-    #         realignment_loss = None
-    #     if return_dict:
-    #         if classification_res is not None:
-    #             classification_res.loss = (
-    #                 realignment_loss
-    #                 if classification_res.loss is None
-    #                 else classification_res.loss + realignment_loss
-    #             )
-    #             return classification_res
-    #         else:
-    #             return TokenClassifierOutput(loss=realignment_loss,)
-    #     else:
-    #         if classification_res is not None:
-    #             loss = (
-    #                 realignment_loss if labels is None else classification_res[0] + realignment_loss
-    #             )
-    #             return (loss, *(classification_res[1:] if labels is not None else classification_res))
-    #         else:
-    #             return (realignment_loss,)
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        inputs_embeds: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        # sentences from left language
+        left_input_ids=None,
+        left_attention_mask=None,
+        left_token_type_ids=None,
+        left_position_ids=None,
+        left_head_mask=None,
+        left_inputs_embeds=None,
+        # sentences from right language
+        right_input_ids=None,
+        right_attention_mask=None,
+        right_token_type_ids=None,
+        right_position_ids=None,
+        right_head_mask=None,
+        right_inputs_embeds=None,
+        # alignment labels
+        alignment_left_ids=None,  # [word_id]
+        alignment_left_positions=None,  # [[batch, start, end]]
+        alignment_right_ids=None,  # [word_id]
+        alignment_right_positions=None,  # [[batch, start, end]]
+    ):
+        if input_ids is not None and left_input_ids is not None:
+            raise Exception(
+                f"{self.__name__} was given a batch containing simultaneously normal and realignment inputs. A batch should contain either one of them but not both."
+            )
+        if input_ids is not None:
+            return super(BertForTokenClassificationWithRealignment, self).forward(
+                input_ids,
+                attention_mask,
+                token_type_ids,
+                position_ids,
+                head_mask,
+                inputs_embeds,
+                labels,
+                output_attentions,
+                output_hidden_states,
+                return_dict=True,
+            )
+        else:
+            realignment_loss = compute_realignment_loss(
+                self.bert,
+                self.realignment_transformation,
+                self.realignment_layers,
+                self.strong_alignment,
+                self.realignment_temperature,
+                self.realignment_coef,
+                self.alignment_hidden_size,
+                left_input_ids,
+                left_attention_mask,
+                left_token_type_ids,
+                left_position_ids,
+                left_head_mask,
+                left_inputs_embeds,
+                right_input_ids,
+                right_attention_mask,
+                right_token_type_ids,
+                right_position_ids,
+                right_head_mask,
+                right_inputs_embeds,
+                alignment_left_ids,  # [word_id]
+                alignment_left_positions,  # [[batch, start, end]]
+                alignment_right_ids,  # [word_id]
+                alignment_right_positions,  # [[batch, start, end]]
+            )
+            if not return_dict:
+                return (realignment_loss,)
+            return TokenClassifierOutput(loss=realignment_loss)
 
     def compute_additional_loss(
         self,
