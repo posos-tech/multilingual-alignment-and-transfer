@@ -48,6 +48,7 @@ def generate_pairs(
     dict_tuple=None,
     selected_source=None,
     selected_target=None,
+    max_pairs=None,
 ):
 
     tokenizer = tokenizer or UniversalTokenizer()
@@ -66,7 +67,12 @@ def generate_pairs(
 
     selected_source = selected_source or set()
     selected_target = selected_target or set()
-    for sent_id, (left_sent, right_sent) in enumerate(tqdm(sentence_pair_generator)):
+    for sent_id, pair in enumerate(tqdm(sentence_pair_generator)):
+        if isinstance(pair, dict):
+            left_sent = pair[left_lang]
+            right_sent = pair[right_lang]
+        else:
+            left_sent, right_sent = pair
 
         if left_sent is None or right_sent is None:
             continue
@@ -140,15 +146,14 @@ def generate_pairs(
                 if avoid_repetition:
                     selected_source.add(word)
                     selected_target.add(tgt_word)
+            if max_pairs and len(res) >= max_pairs:
+                return res
 
     return res
 
 
 def get_fastalign_pairs(
-    sentence_pairs: List[Tuple[str, str]],
-    alignment_file: str,
-    max_length=512,
-    tokenizer=None,
+    sentence_pairs: List[Tuple[str, str]], alignment_file: str, max_length=512, tokenizer=None,
 ):
     tokenizer = tokenizer or UniversalTokenizer()
 
