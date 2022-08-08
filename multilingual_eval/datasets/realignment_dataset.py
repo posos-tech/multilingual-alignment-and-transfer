@@ -175,7 +175,7 @@ class DatasetMapperForRealignment:
 
         for start, end in left_word_positions:
             if start not in left_covered_ids and end - 1 not in left_covered_ids:
-                alignment_left_positions.append([0, start, end])
+                alignment_left_positions.append([start, end])
 
         alignment_left_ids = list(
             range(
@@ -183,11 +183,11 @@ class DatasetMapperForRealignment:
                 len(alignment_left_positions) + len(aligned_left_multi_pos),
             )
         )
-        alignment_left_positions += list(map(lambda x: [0, *x], aligned_left_multi_pos))
+        alignment_left_positions += aligned_left_multi_pos
 
         for start, end in right_word_positions:
             if start not in right_covered_ids and end - 1 not in right_covered_ids:
-                alignment_right_positions.append([0, start, end])
+                alignment_right_positions.append([start, end])
 
         alignment_right_ids = list(
             range(
@@ -195,7 +195,7 @@ class DatasetMapperForRealignment:
                 len(alignment_right_positions) + len(aligned_right_multi_pos),
             )
         )
-        alignment_right_positions += list(map(lambda x: [0, *x], aligned_right_multi_pos))
+        alignment_right_positions += aligned_right_multi_pos
 
         return (
             alignment_left_ids,
@@ -248,6 +248,9 @@ class DatasetMapperForRealignment:
             "alignment_right_ids": alignment_right_ids,
             "alignment_left_positions": alignment_left_positions,
             "alignment_right_positions": alignment_right_positions,
+            "alignment_nb": len(alignment_left_ids),
+            "alignment_left_length": len(alignment_left_positions),
+            "alignment_right_length": len(alignment_right_positions),
         }
 
 
@@ -264,89 +267,46 @@ class RealignmentCollator:
             {k.split("_", 1)[1]: v for k, v in sample.items() if k.startswith("right_")}
             for sample in examples
         ]
-        # finetuning_inputs = [
-        #     {
-        #         k: v
-        #         for k, v in sample.items()
-        #         if not k.startswith("left_")
-        #         and not k.startswith("right_")
-        #         and not k.startswith("alignment_")
-        #     }
-        #     for sample in examples
-        # ]
-
-        # if left_inputs:
-        #     batch_left = {f"left_{k}": v for k, v in self.usual_collator(left_inputs).items()}
-        #     batch_right = {f"right_{k}": v for k, v in self.usual_collator(right_inputs).items()}
-        # else:
-        #     batch_left = {}
-        #     batch_right = {}
-        # if finetuning_inputs:
-        #     batch_finetuning = {k: v for k, v in self.usual_collator(finetuning_inputs).items()}
-        # else:
-        #     batch_finetuning = {}
         batch_left = {f"left_{k}": v for k, v in self.usual_collator(left_inputs).items()}
         batch_right = {f"right_{k}": v for k, v in self.usual_collator(right_inputs).items()}
 
-        alignment_left_ids = None
-        alignment_right_ids = None
-        alignment_left_positions = None
-        alignment_right_positions = None
-        offset_left = 0
-        offset_right = 0
-        for i, example in enumerate(examples):
-            sample_alignment_left_ids = example["alignment_left_ids"]
-            sample_alignment_right_ids = example["alignment_right_ids"]
-            sample_alignment_left_positions = example["alignment_left_positions"]
-            sample_alignment_right_positions = example["alignment_right_positions"]
+        max_nb = max(map(lambda x: x["alignment_nb"], examples))
+        max_left_length = max(map(lambda x: x["alignment_left_length"], examples))
+        max_right_length = max(map(lambda x: x["alignment_right_length"], examples))
 
-            sample_alignment_left_ids = torch.tensor(sample_alignment_left_ids, dtype=torch.long)
-            sample_alignment_right_ids = torch.tensor(sample_alignment_right_ids, dtype=torch.long)
-            sample_alignment_left_positions = torch.tensor(
-                sample_alignment_left_positions, dtype=torch.long
-            )
-            sample_alignment_right_positions = torch.tensor(
-                sample_alignment_right_positions, dtype=torch.long
-            )
+        alignment_left_ids = torch.zeros((len(examples), max_nb), dtype=torch.long)
+        alignment_right_ids = torch.zeros((len(examples), max_nb), dtype=torch.long)
+        alignment_left_positions = torch.zeros((len(examples), max_left_length, 2), dtype=torch.long)
+        alignment_right_positions = torch.zeros(
+            (len(examples), max_right_length, 2), dtype=torch.long
+        )
 
-            sample_alignment_left_ids += offset_left
-            sample_alignment_right_ids += offset_right
-
-            sample_alignment_left_positions[:, 0] = i
-            sample_alignment_right_positions[:, 0] = i
-
-            offset_left += sample_alignment_left_positions.shape[0]
-            offset_right += sample_alignment_right_positions.shape[0]
-
-            alignment_left_ids = (
-                sample_alignment_left_ids
-                if alignment_left_ids is None
-                else torch.cat((alignment_left_ids, sample_alignment_left_ids))
+        for i, ex in enumerate(examples):
+            alignment_left_ids[i, : ex["alignment_nb"]] = torch.LongTensor(ex["alignment_left_ids"])
+            alignment_right_ids[i, : ex["alignment_nb"]] = torch.LongTensor(
+                ex["alignment_right_ids"]
             )
-            alignment_right_ids = (
-                sample_alignment_right_ids
-                if alignment_right_ids is None
-                else torch.cat((alignment_right_ids, sample_alignment_right_ids))
+            alignment_left_positions[i, : ex["alignment_left_length"]] = torch.LongTensor(
+                ex["alignment_left_positions"]
             )
-            alignment_left_positions = (
-                sample_alignment_left_positions
-                if alignment_left_positions is None
-                else torch.cat((alignment_left_positions, sample_alignment_left_positions))
-            )
-            alignment_right_positions = (
-                sample_alignment_right_positions
-                if alignment_right_positions is None
-                else torch.cat((alignment_right_positions, sample_alignment_right_positions))
+            alignment_right_positions[i, : ex["alignment_right_length"]] = torch.LongTensor(
+                ex["alignment_right_positions"]
             )
 
         return {
             **batch_left,
             **batch_right,
-            # **batch_finetuning,
             "alignment_left_ids": alignment_left_ids,
             "alignment_right_ids": alignment_right_ids,
             "alignment_left_positions": alignment_left_positions,
             "alignment_right_positions": alignment_right_positions,
+            "alignment_nb": torch.LongTensor([ex["alignment_nb"] for ex in examples]),
+            "alignment_left_length": torch.LongTensor(
+                [ex["alignment_left_length"] for ex in examples]
+            ),
+            "alignment_right_length": torch.LongTensor(
+                [ex["alignment_right_length"] for ex in examples]
+            ),
         }
 
 

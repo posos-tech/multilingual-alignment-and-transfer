@@ -34,10 +34,13 @@ def compute_realignment_loss(
     right_head_mask=None,
     right_inputs_embeds=None,
     # alignment labels
-    alignment_left_ids=None,  # [word_id]
-    alignment_left_positions=None,  # [[batch, start, end]]
+    alignment_left_ids=None,  # [word_id] -> [[word_id | -1]]
+    alignment_left_positions=None,  # [[batch, start, end]] -> [[[start, end]]]
     alignment_right_ids=None,  # [word_id]
     alignment_right_positions=None,  # [[batch, start, end]]
+    alignment_nb=None,  # [[i]]
+    alignment_left_length=None,  # [[i]]
+    alignment_right_length=None,  # [[i]]
 ):
     total_loss = None
     left_output = encoder(
@@ -74,62 +77,136 @@ def compute_realignment_loss(
         # Inspired by https://github.com/shijie-wu/crosslingual-nlp/blob/780f738df2b75f653aaaf11b9f513850fe11ba36/src/model/aligner.py#L139
 
         aligned_left_repr = torch.zeros(
-            (alignment_left_ids.shape[0], alignment_hidden_size), device=the_device,
+            (alignment_left_ids.shape[0], alignment_left_ids.shape[1], alignment_hidden_size),
+            device=the_device,
         )
         aligned_right_repr = torch.zeros(
-            (alignment_left_ids.shape[0], alignment_hidden_size), device=the_device,
+            (alignment_left_ids.shape[0], alignment_left_ids.shape[1], alignment_hidden_size),
+            device=the_device,
         )
 
-        for i in range(alignment_left_ids.shape[0]):
-            aligned_left_repr[i] = realignment_transformation(
-                torch.sum(
-                    left_hidden_states[layer][
-                        alignment_left_positions[alignment_left_ids[i]][0],
-                        alignment_left_positions[alignment_left_ids[i]][
-                            1
-                        ] : alignment_left_positions[alignment_left_ids[i]][2],
-                    ],
-                    0,
+        for b in range(alignment_left_ids.shape[0]):
+            for i in range(alignment_left_ids.shape[1]):
+                aligned_left_repr[b, i] = realignment_transformation(
+                    torch.sum(
+                        left_hidden_states[layer][
+                            b,
+                            alignment_left_positions[b, alignment_left_ids[b, i]][
+                                0
+                            ] : alignment_left_positions[b, alignment_left_ids[b, i]][1],
+                        ],
+                        0,
+                    )
                 )
-            )
-            aligned_right_repr[i] = realignment_transformation(
-                torch.sum(
-                    right_hidden_states[layer][
-                        alignment_right_positions[alignment_right_ids[i]][0],
-                        alignment_right_positions[alignment_right_ids[i]][
-                            1
-                        ] : alignment_right_positions[alignment_right_ids[i]][2],
-                    ],
-                    0,
+                aligned_right_repr[b, i] = realignment_transformation(
+                    torch.sum(
+                        right_hidden_states[layer][
+                            b,
+                            alignment_right_positions[b, alignment_right_ids[b, i]][
+                                0
+                            ] : alignment_right_positions[b, alignment_right_ids[b, i]][1],
+                        ],
+                        0,
+                    )
                 )
-            )
 
         all_left_repr = torch.zeros(
-            (alignment_left_positions.shape[0], alignment_hidden_size), device=the_device,
+            (
+                alignment_left_positions.shape[0],
+                alignment_left_positions.shape[1],
+                alignment_hidden_size,
+            ),
+            device=the_device,
         )
         all_right_repr = torch.zeros(
-            (alignment_right_positions.shape[0], alignment_hidden_size), device=the_device,
+            (
+                alignment_right_positions.shape[0],
+                alignment_right_positions.shape[1],
+                alignment_hidden_size,
+            ),
+            device=the_device,
         )
-        for i in range(alignment_left_positions.shape[0]):
-            all_left_repr[i] = realignment_transformation(
-                torch.sum(
-                    left_hidden_states[layer][
-                        alignment_left_positions[i][0],
-                        alignment_left_positions[i][1] : alignment_left_positions[i][2],
-                    ],
-                    0,
+        for b in range(alignment_right_positions.shape[0]):
+            for i in range(alignment_left_positions.shape[1]):
+                all_left_repr[b, i] = realignment_transformation(
+                    torch.sum(
+                        left_hidden_states[layer][
+                            b,
+                            alignment_left_positions[b, i][0] : alignment_left_positions[b, i][1],
+                        ],
+                        0,
+                    )
                 )
-            )
-        for i in range(alignment_right_positions.shape[0]):
-            all_right_repr[i] = realignment_transformation(
-                torch.sum(
-                    right_hidden_states[layer][
-                        alignment_right_positions[i][0],
-                        alignment_right_positions[i][1] : alignment_right_positions[i][2],
-                    ],
-                    0,
+            for i in range(alignment_right_positions.shape[1]):
+                all_right_repr[b, i] = realignment_transformation(
+                    torch.sum(
+                        right_hidden_states[layer][
+                            b,
+                            alignment_right_positions[b, i][0] : alignment_right_positions[b, i][1],
+                        ],
+                        0,
+                    )
                 )
+
+        aligned_left_repr = torch.cat(
+            (*[aligned_left_repr[b][: alignment_nb[b]] for b in range(aligned_left_repr.shape[0])],)
+        )
+        aligned_right_repr = torch.cat(
+            (
+                *[
+                    aligned_right_repr[b][: alignment_nb[b]]
+                    for b in range(aligned_right_repr.shape[0])
+                ],
             )
+        )
+        all_left_repr = torch.cat(
+            (
+                *[
+                    all_left_repr[b][: alignment_left_length[b]]
+                    for b in range(all_left_repr.shape[0])
+                ],
+            )
+        )
+        all_right_repr = torch.cat(
+            (
+                *[
+                    all_right_repr[b][: alignment_right_length[b]]
+                    for b in range(all_right_repr.shape[0])
+                ],
+            )
+        )
+
+        right_cumul_length = torch.cat(
+            (
+                torch.tensor([0], dtype=torch.long, device=the_device),
+                torch.cumsum(alignment_right_length, 0),
+            )
+        )
+        left_cumul_length = torch.cat(
+            (
+                torch.tensor([0], dtype=torch.long, device=the_device),
+                torch.cumsum(alignment_left_length, 0),
+            )
+        )
+
+        left_goal = torch.cat(
+            (
+                *[
+                    all_left_repr.shape[0]
+                    + right_cumul_length[b]
+                    + alignment_right_ids[b][: alignment_nb[b]]
+                    for b in range(alignment_left_ids.shape[0])
+                ],
+            )
+        )
+        right_goal = torch.cat(
+            (
+                *[
+                    left_cumul_length[b] + alignment_left_ids[b][: alignment_nb[b]]
+                    for b in range(alignment_right_ids.shape[0])
+                ],
+            )
+        )
 
         aligned_reprs = torch.cat((aligned_left_repr, aligned_right_repr))
         all_reprs = torch.cat((all_left_repr, all_right_repr))
@@ -148,8 +225,7 @@ def compute_realignment_loss(
         else:
             # remove (x,x) similarities
             sim[
-                torch.arange(0, aligned_left_repr.shape[0], 1, device=the_device),
-                alignment_left_ids,
+                torch.arange(0, aligned_left_repr.shape[0], 1, device=the_device), right_goal,
             ] -= 1e6
             sim[
                 torch.arange(
@@ -158,14 +234,13 @@ def compute_realignment_loss(
                     1,
                     device=the_device,
                 ),
-                alignment_right_ids + all_left_repr.shape[0],
+                left_goal,
             ] -= 1e6
 
         logits = F.log_softmax(sim, dim=-1)
+        goal = torch.cat((left_goal, right_goal))
 
-        loss = F.nll_loss(
-            logits, torch.cat((alignment_right_ids + all_left_repr.shape[0], alignment_left_ids))
-        )
+        loss = F.nll_loss(logits, goal)
 
         if total_loss is None:
             total_loss = (realignment_coef / len(realignment_layers)) * loss
@@ -247,10 +322,13 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
         right_head_mask=None,
         right_inputs_embeds=None,
         # alignment labels
-        alignment_left_ids=None,  # [word_id]
-        alignment_left_positions=None,  # [[batch, start, end]]
-        alignment_right_ids=None,  # [word_id]
-        alignment_right_positions=None,  # [[batch, start, end]]
+        alignment_left_ids=None,
+        alignment_left_positions=None,
+        alignment_right_ids=None,
+        alignment_right_positions=None,
+        alignment_nb=None,
+        alignment_left_length=None,
+        alignment_right_length=None,
     ):
         if input_ids is not None and left_input_ids is not None:
             raise Exception(
@@ -290,10 +368,13 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
                 right_position_ids,
                 right_head_mask,
                 right_inputs_embeds,
-                alignment_left_ids,  # [word_id]
-                alignment_left_positions,  # [[batch, start, end]]
-                alignment_right_ids,  # [word_id]
-                alignment_right_positions,  # [[batch, start, end]]
+                alignment_left_ids,
+                alignment_left_positions,
+                alignment_right_ids,
+                alignment_right_positions,
+                alignment_nb,
+                alignment_left_length,
+                alignment_right_length,
             )
             if not return_dict:
                 return (realignment_loss,)
@@ -316,10 +397,13 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
         right_head_mask=None,
         right_inputs_embeds=None,
         # alignment labels
-        alignment_left_ids=None,  # [word_id]
-        alignment_left_positions=None,  # [[batch, start, end]]
-        alignment_right_ids=None,  # [word_id]
-        alignment_right_positions=None,  # [[batch, start, end]]
+        alignment_left_ids=None,
+        alignment_left_positions=None,
+        alignment_right_ids=None,
+        alignment_right_positions=None,
+        alignment_nb=None,
+        alignment_left_length=None,
+        alignment_right_length=None,
     ):
         return compute_realignment_loss(
             self.bert,
@@ -341,10 +425,13 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
             right_position_ids,
             right_head_mask,
             right_inputs_embeds,
-            alignment_left_ids,  # [word_id]
-            alignment_left_positions,  # [[batch, start, end]]
-            alignment_right_ids,  # [word_id]
-            alignment_right_positions,  # [[batch, start, end]]
+            alignment_left_ids,
+            alignment_left_positions,
+            alignment_right_ids,
+            alignment_right_positions,
+            alignment_nb,
+            alignment_left_length,
+            alignment_right_length,
         )
 
 
@@ -393,6 +480,91 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
 
         self.realignment_coef = realignment_coef
 
+    def forward(
+        self,
+        input_ids: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.Tensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        inputs_embeds: Optional[torch.Tensor] = None,
+        labels: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+        # sentences from left language
+        left_input_ids=None,
+        left_attention_mask=None,
+        left_token_type_ids=None,
+        left_position_ids=None,
+        left_head_mask=None,
+        left_inputs_embeds=None,
+        # sentences from right language
+        right_input_ids=None,
+        right_attention_mask=None,
+        right_token_type_ids=None,
+        right_position_ids=None,
+        right_head_mask=None,
+        right_inputs_embeds=None,
+        # alignment labels
+        alignment_left_ids=None,
+        alignment_left_positions=None,
+        alignment_right_ids=None,
+        alignment_right_positions=None,
+        alignment_nb=None,
+        alignment_left_length=None,
+        alignment_right_length=None,
+    ):
+        if input_ids is not None and left_input_ids is not None:
+            raise Exception(
+                f"{self.__name__} was given a batch containing simultaneously normal and realignment inputs. A batch should contain either one of them but not both."
+            )
+        if input_ids is not None:
+            return super(BertForSequenceClassificationWithRealignment, self).forward(
+                input_ids,
+                attention_mask,
+                token_type_ids,
+                position_ids,
+                head_mask,
+                inputs_embeds,
+                labels,
+                output_attentions,
+                output_hidden_states,
+                return_dict=True,
+            )
+        else:
+            realignment_loss = compute_realignment_loss(
+                self.bert,
+                self.realignment_transformation,
+                self.realignment_layers,
+                self.strong_alignment,
+                self.realignment_temperature,
+                self.realignment_coef,
+                self.alignment_hidden_size,
+                left_input_ids,
+                left_attention_mask,
+                left_token_type_ids,
+                left_position_ids,
+                left_head_mask,
+                left_inputs_embeds,
+                right_input_ids,
+                right_attention_mask,
+                right_token_type_ids,
+                right_position_ids,
+                right_head_mask,
+                right_inputs_embeds,
+                alignment_left_ids,
+                alignment_left_positions,
+                alignment_right_ids,
+                alignment_right_positions,
+                alignment_nb,
+                alignment_left_length,
+                alignment_right_length,
+            )
+            if not return_dict:
+                return (realignment_loss,)
+            return TokenClassifierOutput(loss=realignment_loss)
+
     def compute_additional_loss(
         self,
         # sentences from left language
@@ -410,10 +582,13 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
         right_head_mask=None,
         right_inputs_embeds=None,
         # alignment labels
-        alignment_left_ids=None,  # [word_id]
-        alignment_left_positions=None,  # [[batch, start, end]]
-        alignment_right_ids=None,  # [word_id]
-        alignment_right_positions=None,  # [[batch, start, end]]
+        alignment_left_ids=None,
+        alignment_left_positions=None,
+        alignment_right_ids=None,
+        alignment_right_positions=None,
+        alignment_nb=None,
+        alignment_left_length=None,
+        alignment_right_length=None,
     ):
         return compute_realignment_loss(
             self.bert,
@@ -435,10 +610,13 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
             right_position_ids,
             right_head_mask,
             right_inputs_embeds,
-            alignment_left_ids,  # [word_id]
-            alignment_left_positions,  # [[batch, start, end]]
-            alignment_right_ids,  # [word_id]
-            alignment_right_positions,  # [[batch, start, end]]
+            alignment_left_ids,
+            alignment_left_positions,
+            alignment_right_ids,
+            alignment_right_positions,
+            alignment_nb,
+            alignment_left_length,
+            alignment_right_length,
         )
 
 
@@ -480,137 +658,3 @@ class TrainerWithRealignment(Trainer):
         loss += additional_loss
 
         return (loss, outputs) if return_outputs else loss
-
-
-if __name__ == "__main__":
-
-    from datasets import load_dataset
-    from transformers import AutoTokenizer, BertForTokenClassification, DataCollatorWithPadding
-    import argparse
-    import sys, os
-
-    sys.path.append(os.curdir)
-
-    from multilingual_eval.datasets.realignment_dataset import DatasetMapperForRealignment
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("dico_path", type=str)
-    args = parser.parse_args()
-
-    tokenizer = AutoTokenizer.from_pretrained("bert-base-multilingual-cased")
-    model = BertForTokenClassificationWithRealignment.from_pretrained(
-        "bert-base-multilingual-cased", num_labels=17
-    )
-
-    translation_dataset = load_dataset("news_commentary", "de-en")
-
-    def preprocess_news_commentary(example):
-        return {k: v for k, v in example["translation"].items()}
-
-    translation_dataset = translation_dataset.map(
-        preprocess_news_commentary, remove_columns=["id", "translation"]
-    ).filter(lambda x: x["en"] is not None and x["de"] is not None)
-
-    dataset_transformer = DatasetMapperForRealignment(tokenizer, args.dico_path, "en", "de")
-
-    # for i, elt in enumerate(translation_dataset["train"]):
-    #     if i == 5:
-    #         break
-    #     dataset_transformer(elt)
-
-    # print(dataset_transformer.perfs)
-
-    realignment_dataset = translation_dataset.map(dataset_transformer, remove_columns=["en", "de"])
-    realignment_dataset = realignment_dataset.filter(lambda x: len(x["alignment_left_ids"]) > 0)
-
-    alignment_iterator = iter(realignment_dataset["train"])
-
-    first_realignment_example = next(alignment_iterator)
-
-    print(first_realignment_example)
-
-    second_realignment_example = next(alignment_iterator)
-
-    print(second_realignment_example)
-
-    usual_collator = DataCollatorWithPadding(tokenizer)
-
-    def small_collator_fn(examples):
-        left_inputs = [
-            {k.split("_", 1)[1]: v for k, v in sample.items() if k.startswith("left_")}
-            for sample in examples
-        ]
-        right_inputs = [
-            {k.split("_", 1)[1]: v for k, v in sample.items() if k.startswith("right_")}
-            for sample in examples
-        ]
-
-        batch_left = {f"left_{k}": v for k, v in usual_collator(left_inputs).items()}
-        batch_right = {f"right_{k}": v for k, v in usual_collator(right_inputs).items()}
-
-        alignment_left_ids = None
-        alignment_right_ids = None
-        alignment_left_positions = None
-        alignment_right_positions = None
-        offset_left = 0
-        offset_right = 0
-        for i, example in enumerate(examples):
-            sample_alignment_left_ids = example["alignment_left_ids"]
-            sample_alignment_right_ids = example["alignment_right_ids"]
-            sample_alignment_left_positions = example["alignment_left_positions"]
-            sample_alignment_right_positions = example["alignment_right_positions"]
-
-            sample_alignment_left_ids = torch.tensor(sample_alignment_left_ids, dtype=torch.long)
-            sample_alignment_right_ids = torch.tensor(sample_alignment_right_ids, dtype=torch.long)
-            sample_alignment_left_positions = torch.tensor(
-                sample_alignment_left_positions, dtype=torch.long
-            )
-            sample_alignment_right_positions = torch.tensor(
-                sample_alignment_right_positions, dtype=torch.long
-            )
-
-            sample_alignment_left_ids += offset_left
-            sample_alignment_right_ids += offset_right
-
-            sample_alignment_left_positions[:, 0] = i
-            sample_alignment_right_positions[:, 0] = i
-
-            offset_left += sample_alignment_left_positions.shape[0]
-            offset_right += sample_alignment_right_positions.shape[0]
-
-            alignment_left_ids = (
-                sample_alignment_left_ids
-                if alignment_left_ids is None
-                else torch.cat((alignment_left_ids, sample_alignment_left_ids))
-            )
-            alignment_right_ids = (
-                sample_alignment_right_ids
-                if alignment_right_ids is None
-                else torch.cat((alignment_right_ids, sample_alignment_right_ids))
-            )
-            alignment_left_positions = (
-                sample_alignment_left_positions
-                if alignment_left_positions is None
-                else torch.cat((alignment_left_positions, sample_alignment_left_positions))
-            )
-            alignment_right_positions = (
-                sample_alignment_right_positions
-                if alignment_right_positions is None
-                else torch.cat((alignment_right_positions, sample_alignment_right_positions))
-            )
-
-        return {
-            **batch_left,
-            **batch_right,
-            "alignment_left_ids": alignment_left_ids,
-            "alignment_right_ids": alignment_right_ids,
-            "alignment_left_positions": alignment_left_positions,
-            "alignment_right_positions": alignment_right_positions,
-        }
-
-    batch = small_collator_fn([first_realignment_example, second_realignment_example])
-
-    loss = compute_realignment_loss(model, lambda x: x, [-1], **batch)
-
-    print(loss)
-
