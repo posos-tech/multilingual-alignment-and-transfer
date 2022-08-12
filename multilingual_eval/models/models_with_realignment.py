@@ -282,7 +282,10 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
 
             if i < len(realignment_transformation) - 1:
                 transformations.append(torch.nn.ReLU())
-        self.realignment_transformation = torch.nn.Sequential(*transformations)
+        if len(transformations) > 0:
+            self.realignment_transformation = torch.nn.Sequential(*transformations)
+        else:
+            self.realignment_transformation = lambda x: x
         self.alignment_hidden_size = (
             realignment_transformation[-1]
             if len(realignment_transformation) > 0
@@ -510,7 +513,10 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
 
             if i < len(realignment_transformation) - 1:
                 transformations.append(torch.nn.ReLU())
-        self.realignment_transformation = torch.nn.Sequential(*transformations)
+        if len(transformations) > 0:
+            self.realignment_transformation = torch.nn.Sequential(*transformations)
+        else:
+            self.realignment_transformation = lambda x: x
         self.alignment_hidden_size = (
             realignment_transformation[-1]
             if len(realignment_transformation) > 0
