@@ -11,6 +11,7 @@ import torch
 from datasets import concatenate_datasets
 from datasets.iterable_dataset import IterableDataset
 from torch.utils.data import DataLoader
+import numpy as np
 
 from multilingual_eval.data import get_dicos
 from multilingual_eval.datasets.data_utils import (
@@ -26,6 +27,27 @@ from multilingual_eval.utils import get_tokenizer_type, subwordlist_to_wordlist
 class BilingualDictionary:
     forward: Dict[Tuple[str], Set[Tuple[str]]]
     backward: Dict[Tuple[str], Set[Tuple[str]]]
+
+    def sample_dictionary(self, fraction):
+        new_forward = defaultdict(lambda: set())
+        new_backward = defaultdict(lambda: set())
+
+        remaining_forward = defaultdict(lambda: set())
+        remaining_backward = defaultdict(lambda: set())
+
+        for key, values in self.forward.items():
+            for value in values:
+                if np.random.random() < fraction:
+                    new_forward[key].add(value)
+                    new_backward[value].add(key)
+                else:
+                    remaining_forward[key].add(value)
+                    remaining_backward[value].add(key)
+
+        self.forward = new_forward
+        self.backward = new_backward
+
+        return BilingualDictionary(remaining_forward, remaining_backward)
 
 
 def timing(func):
@@ -393,8 +415,25 @@ class RealignmentAndOtherCollator(RealignmentCollator):
         return {**alignment_batch, **batch_others}
 
 
-def get_realignment_dataset(tokenizer, translation_dataset, left_lang, right_lang, dico_path):
-    mapper = DatasetMapperForRealignment(tokenizer, dico_path, left_lang, right_lang)
+def get_realignment_dataset(
+    tokenizer,
+    translation_dataset,
+    left_lang,
+    right_lang,
+    dico_path=None,
+    dico=None,
+    mapper_for_realignment=None,
+    dico_fraction=1.0,
+    return_dico=False,
+):
+    mapper = mapper_for_realignment or DatasetMapperForRealignment(
+        tokenizer,
+        left_lang,
+        right_lang,
+        dico_path=dico_path,
+        dico=dico,
+        dictionary_fraction=dico_fraction,
+    )
 
     if not isinstance(translation_dataset, IterableDataset):
         translation_dataset = convert_dataset_to_iterable_dataset(translation_dataset)
@@ -405,6 +444,8 @@ def get_realignment_dataset(tokenizer, translation_dataset, left_lang, right_lan
         .shuffle()
         .with_format("torch")
     )
+    if return_dico:
+        return translation_dataset, mapper.other_dico
     return translation_dataset
 
 

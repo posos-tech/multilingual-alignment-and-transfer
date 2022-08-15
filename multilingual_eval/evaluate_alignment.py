@@ -16,6 +16,7 @@ def select_pairs_for_evaluation(
     right_lang,
     nb_selected=5000,
     max_length=512,
+    dict_tuple=None,
 ):
     def remove_bad_samples(example):
         if example[left_lang] is None:
@@ -44,6 +45,7 @@ def select_pairs_for_evaluation(
         right_lang=right_lang,
         avoid_repetition=False,
         max_pairs=nb_selected * 50,
+        dict_tuple=dict_tuple,
     )
 
     if len(pairs) < 5000:
