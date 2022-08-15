@@ -65,22 +65,39 @@ def timing(func):
 
 
 class DatasetMapperForRealignment:
-    def __init__(self, tokenizer, dico_path: str, left_key: str, right_key: str):
+    def __init__(
+        self,
+        tokenizer,
+        left_key: str,
+        right_key: str,
+        dico_path=None,
+        dico=None,
+        dictionary_fraction=1.0,
+    ):
         self.tokenizer = tokenizer
+        self._tokenizer_type = get_tokenizer_type(tokenizer)
 
-        forward, backward = get_dicos(
-            left_key, right_key, dico_path, ignore_identical=True, tokenizer=tokenizer
-        )
+        if dico is None:
+            forward, backward = get_dicos(
+                left_key, right_key, dico_path, ignore_identical=True, tokenizer=tokenizer
+            )
 
-        self.dico = BilingualDictionary(forward, backward)
+            self.dico = BilingualDictionary(forward, backward)
+        else:
+            self.dico = dico
+
+        if dictionary_fraction < 1.0:
+            self.other_dico = self.dico.sample_dictionary(dictionary_fraction)
+            forward = self.dico.forward
+            backward = self.dico.backward
+        else:
+            self.other_dico = self.dico
 
         self.left_key = left_key
         self.right_key = right_key
 
         self._max_left_length = max(map(len, forward))
         self._max_right_length = max(map(len, backward))
-
-        self._tokenizer_type = get_tokenizer_type(tokenizer)
 
         self.perfs = defaultdict(lambda: [0.0, 0])
 
@@ -359,6 +376,13 @@ class RealignmentCollator:
         }
 
 
+def keep_only_first_subword(example):
+    for key in ["alignment_left_positions", "alignment_right_positions"]:
+        for i, (start, _) in enumerate(example[key]):
+            example[key][i][1] = start + 1
+    return example
+
+
 class RealignmentAndOtherCollator(RealignmentCollator):
     def __init__(self, tokenizer, other_collator):
         super().__init__(tokenizer)
@@ -425,6 +449,7 @@ def get_realignment_dataset(
     mapper_for_realignment=None,
     dico_fraction=1.0,
     return_dico=False,
+    first_subword_only=False,
 ):
     mapper = mapper_for_realignment or DatasetMapperForRealignment(
         tokenizer,
@@ -438,9 +463,13 @@ def get_realignment_dataset(
     if not isinstance(translation_dataset, IterableDataset):
         translation_dataset = convert_dataset_to_iterable_dataset(translation_dataset)
 
+    translation_dataset = translation_dataset.map(mapper, remove_columns=[left_lang, right_lang])
+
+    if first_subword_only:
+        translation_dataset = translation_dataset.map(keep_only_first_subword)
+
     translation_dataset = (
-        translation_dataset.map(mapper, remove_columns=[left_lang, right_lang])
-        .filter(lambda x: len(x["alignment_left_ids"]) > 0)
+        translation_dataset.filter(lambda x: len(x["alignment_left_ids"]) > 0)
         .shuffle()
         .with_format("torch")
     )
