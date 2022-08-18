@@ -1,3 +1,5 @@
 **/__pycache__/
 parameters.sh
 wandb/
+local_runs/
+venvs/
