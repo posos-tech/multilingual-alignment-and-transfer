@@ -11,6 +11,14 @@ import torch.nn.functional as F
 from torch.nn import DataParallel
 
 
+class DumbContext:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+
 def compute_realignment_loss(
     encoder,
     realignment_transformation,
@@ -19,6 +27,7 @@ def compute_realignment_loss(
     realignment_temperature=0.1,
     realignment_coef=1.0,
     alignment_hidden_size=128,
+    no_backward_for_source=False,
     # sentences from left language
     left_input_ids=None,
     left_attention_mask=None,
@@ -43,19 +52,23 @@ def compute_realignment_loss(
     alignment_right_length=None,  # [[i]]
 ):
     total_loss = None
-    left_output = encoder(
-        left_input_ids,
-        attention_mask=left_attention_mask,
-        token_type_ids=left_token_type_ids,
-        position_ids=left_position_ids,
-        head_mask=left_head_mask,
-        inputs_embeds=left_inputs_embeds,
-        output_attentions=False,
-        output_hidden_states=True,
-        return_dict=True,
-    )
 
-    left_hidden_states = left_output.hidden_states
+    context_manager = torch.no_grad() if no_backward_for_source else DumbContext()
+
+    with context_manager:
+        left_output = encoder(
+            left_input_ids,
+            attention_mask=left_attention_mask,
+            token_type_ids=left_token_type_ids,
+            position_ids=left_position_ids,
+            head_mask=left_head_mask,
+            inputs_embeds=left_inputs_embeds,
+            output_attentions=False,
+            output_hidden_states=True,
+            return_dict=True,
+        )
+
+        left_hidden_states = left_output.hidden_states
 
     right_output = encoder(
         right_input_ids,
@@ -225,7 +238,8 @@ def compute_realignment_loss(
         else:
             # remove (x,x) similarities
             sim[
-                torch.arange(0, aligned_left_repr.shape[0], 1, device=the_device), right_goal,
+                torch.arange(0, aligned_left_repr.shape[0], 1, device=the_device),
+                right_goal,
             ] -= 1e6
             sim[
                 torch.arange(
@@ -259,6 +273,7 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
         strong_alignment=False,
         realignment_temperature=0.1,
         realignment_coef=1.0,
+        no_backward_for_source=False,
     ):
         super(BertForTokenClassificationWithRealignment, self).__init__(config)
 
@@ -297,6 +312,8 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
         self.realignment_temperature = realignment_temperature
 
         self.realignment_coef = realignment_coef
+
+        self.no_backward_for_source = no_backward_for_source
 
     def forward(
         self,
@@ -355,6 +372,7 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
                     self.realignment_temperature,
                     self.realignment_coef,
                     self.alignment_hidden_size,
+                    self.no_backward_for_source,
                     left_input_ids,
                     left_attention_mask,
                     left_token_type_ids,
@@ -402,6 +420,7 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
                 self.realignment_temperature,
                 self.realignment_coef,
                 self.alignment_hidden_size,
+                self.no_backward_for_source,
                 left_input_ids,
                 left_attention_mask,
                 left_token_type_ids,
@@ -459,6 +478,7 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
             self.realignment_temperature,
             self.realignment_coef,
             self.alignment_hidden_size,
+            self.no_backward_for_source,
             left_input_ids,
             left_attention_mask,
             left_token_type_ids,
@@ -490,6 +510,7 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
         strong_alignment=False,
         realignment_temperature=0.1,
         realignment_coef=1.0,
+        no_backward_for_source=False,
     ):
         super(BertForSequenceClassificationWithRealignment, self).__init__(config)
 
@@ -528,6 +549,8 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
         self.realignment_temperature = realignment_temperature
 
         self.realignment_coef = realignment_coef
+
+        self.no_backward_for_source = no_backward_for_source
 
     def forward(
         self,
@@ -590,6 +613,7 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
                 self.realignment_temperature,
                 self.realignment_coef,
                 self.alignment_hidden_size,
+                self.no_backward_for_source,
                 left_input_ids,
                 left_attention_mask,
                 left_token_type_ids,
@@ -671,7 +695,10 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
 
 class TrainerWithRealignment(Trainer):
     def __init__(
-        self, *args, realignment_dataloader=None, **kwargs,
+        self,
+        *args,
+        realignment_dataloader=None,
+        **kwargs,
     ):
         super(TrainerWithRealignment, self).__init__(*args, **kwargs)
 
