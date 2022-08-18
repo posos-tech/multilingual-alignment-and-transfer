@@ -9,6 +9,7 @@ from transformers.models.bert.modeling_bert import (
 import torch
 import torch.nn.functional as F
 from torch.nn import DataParallel
+import copy
 
 
 class DumbContext:
@@ -28,6 +29,8 @@ def compute_realignment_loss(
     realignment_coef=1.0,
     alignment_hidden_size=128,
     no_backward_for_source=False,
+    regularization_lambda=1.0,
+    initial_model=None,
     # sentences from left language
     left_input_ids=None,
     left_attention_mask=None,
@@ -69,6 +72,21 @@ def compute_realignment_loss(
         )
 
         left_hidden_states = left_output.hidden_states
+
+    if initial_model is not None:
+        initial_output = initial_model(
+            left_input_ids,
+            attention_mask=left_attention_mask,
+            token_type_ids=left_token_type_ids,
+            position_ids=left_position_ids,
+            head_mask=left_head_mask,
+            inputs_embeds=left_inputs_embeds,
+            output_attentions=False,
+            output_hidden_states=True,
+            return_dict=True,
+        )
+
+        initial_hidden_states = initial_output.hidden_states
 
     right_output = encoder(
         right_input_ids,
@@ -256,6 +274,11 @@ def compute_realignment_loss(
 
         loss = F.nll_loss(logits, goal)
 
+        if initial_model is not None:
+            loss += regularization_lambda * F.mse_loss(
+                left_hidden_states[layer], initial_hidden_states[layer]
+            )
+
         if total_loss is None:
             total_loss = (realignment_coef / len(realignment_layers)) * loss
         else:
@@ -274,6 +297,8 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
         realignment_temperature=0.1,
         realignment_coef=1.0,
         no_backward_for_source=False,
+        regularization_to_init=False,
+        regularization_lambda=1.0,
     ):
         super(BertForTokenClassificationWithRealignment, self).__init__(config)
 
@@ -314,6 +339,19 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
         self.realignment_coef = realignment_coef
 
         self.no_backward_for_source = no_backward_for_source
+
+        self.regularization_to_init = regularization_to_init
+        self.initial_model = None
+
+        self.regularization_lambda = regularization_lambda
+
+    def reset_initial_weights_regularizer(self):
+        if not self.regularization_to_init:
+            return
+        self.initial_model = copy.deepcopy(self.bert)
+
+        for param in self.initial_model.parameters():
+            param.requires_grad = False
 
     def forward(
         self,
@@ -373,6 +411,8 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
                     self.realignment_coef,
                     self.alignment_hidden_size,
                     self.no_backward_for_source,
+                    self.regularization_lambda,
+                    self.initial_model,
                     left_input_ids,
                     left_attention_mask,
                     left_token_type_ids,
@@ -421,6 +461,8 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
                 self.realignment_coef,
                 self.alignment_hidden_size,
                 self.no_backward_for_source,
+                self.regularization_lambda,
+                self.initial_model,
                 left_input_ids,
                 left_attention_mask,
                 left_token_type_ids,
@@ -445,61 +487,6 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
                 return (realignment_loss,)
             return TokenClassifierOutput(loss=realignment_loss)
 
-    def compute_additional_loss(
-        self,
-        # sentences from left language
-        left_input_ids=None,
-        left_attention_mask=None,
-        left_token_type_ids=None,
-        left_position_ids=None,
-        left_head_mask=None,
-        left_inputs_embeds=None,
-        # sentences from right language
-        right_input_ids=None,
-        right_attention_mask=None,
-        right_token_type_ids=None,
-        right_position_ids=None,
-        right_head_mask=None,
-        right_inputs_embeds=None,
-        # alignment labels
-        alignment_left_ids=None,
-        alignment_left_positions=None,
-        alignment_right_ids=None,
-        alignment_right_positions=None,
-        alignment_nb=None,
-        alignment_left_length=None,
-        alignment_right_length=None,
-    ):
-        return compute_realignment_loss(
-            self.bert,
-            self.realignment_transformation,
-            self.realignment_layers,
-            self.strong_alignment,
-            self.realignment_temperature,
-            self.realignment_coef,
-            self.alignment_hidden_size,
-            self.no_backward_for_source,
-            left_input_ids,
-            left_attention_mask,
-            left_token_type_ids,
-            left_position_ids,
-            left_head_mask,
-            left_inputs_embeds,
-            right_input_ids,
-            right_attention_mask,
-            right_token_type_ids,
-            right_position_ids,
-            right_head_mask,
-            right_inputs_embeds,
-            alignment_left_ids,
-            alignment_left_positions,
-            alignment_right_ids,
-            alignment_right_positions,
-            alignment_nb,
-            alignment_left_length,
-            alignment_right_length,
-        )
-
 
 class BertForSequenceClassificationWithRealignment(BertForSequenceClassification):
     def __init__(
@@ -511,6 +498,8 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
         realignment_temperature=0.1,
         realignment_coef=1.0,
         no_backward_for_source=False,
+        regularization_to_init=False,
+        regularization_lambda=1.0,
     ):
         super(BertForSequenceClassificationWithRealignment, self).__init__(config)
 
@@ -552,6 +541,19 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
 
         self.no_backward_for_source = no_backward_for_source
 
+        self.regularization_to_init = regularization_to_init
+        self.initial_model = None
+
+        self.regularization_lambda = regularization_lambda
+
+    def reset_initial_weights_regularizer(self):
+        if not self.regularization_to_init:
+            return
+        self.initial_model = copy.deepcopy(self.bert)
+
+        for param in self.initial_model.parameters():
+            param.requires_grad = False
+
     def forward(
         self,
         input_ids: Optional[torch.Tensor] = None,
@@ -588,9 +590,55 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
         alignment_right_length=None,
     ):
         if input_ids is not None and left_input_ids is not None:
-            raise Exception(
-                f"{self.__name__} was given a batch containing simultaneously normal and realignment inputs. A batch should contain either one of them but not both."
+            res = super(BertForTokenClassificationWithRealignment, self).forward(
+                input_ids,
+                attention_mask,
+                token_type_ids,
+                position_ids,
+                head_mask,
+                inputs_embeds,
+                labels,
+                output_attentions,
+                output_hidden_states,
+                return_dict=return_dict,
             )
+            if labels is not None:
+                realignment_loss = compute_realignment_loss(
+                    self.bert,
+                    self.realignment_transformation,
+                    self.realignment_layers,
+                    self.strong_alignment,
+                    self.realignment_temperature,
+                    self.realignment_coef,
+                    self.alignment_hidden_size,
+                    self.no_backward_for_source,
+                    self.regularization_lambda,
+                    self.initial_model,
+                    left_input_ids,
+                    left_attention_mask,
+                    left_token_type_ids,
+                    left_position_ids,
+                    left_head_mask,
+                    left_inputs_embeds,
+                    right_input_ids,
+                    right_attention_mask,
+                    right_token_type_ids,
+                    right_position_ids,
+                    right_head_mask,
+                    right_inputs_embeds,
+                    alignment_left_ids,
+                    alignment_left_positions,
+                    alignment_right_ids,
+                    alignment_right_positions,
+                    alignment_nb,
+                    alignment_left_length,
+                    alignment_right_length,
+                )
+                if return_dict:
+                    res.loss += realignment_loss
+                    return res
+                else:
+                    return (res[0] + realignment_loss, *res[1:])
         if input_ids is not None:
             return super(BertForSequenceClassificationWithRealignment, self).forward(
                 input_ids,
@@ -614,6 +662,8 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
                 self.realignment_coef,
                 self.alignment_hidden_size,
                 self.no_backward_for_source,
+                self.regularization_lambda,
+                self.initial_model,
                 left_input_ids,
                 left_attention_mask,
                 left_token_type_ids,
@@ -637,100 +687,3 @@ class BertForSequenceClassificationWithRealignment(BertForSequenceClassification
             if not return_dict:
                 return (realignment_loss,)
             return TokenClassifierOutput(loss=realignment_loss)
-
-    def compute_additional_loss(
-        self,
-        # sentences from left language
-        left_input_ids=None,
-        left_attention_mask=None,
-        left_token_type_ids=None,
-        left_position_ids=None,
-        left_head_mask=None,
-        left_inputs_embeds=None,
-        # sentences from right language
-        right_input_ids=None,
-        right_attention_mask=None,
-        right_token_type_ids=None,
-        right_position_ids=None,
-        right_head_mask=None,
-        right_inputs_embeds=None,
-        # alignment labels
-        alignment_left_ids=None,
-        alignment_left_positions=None,
-        alignment_right_ids=None,
-        alignment_right_positions=None,
-        alignment_nb=None,
-        alignment_left_length=None,
-        alignment_right_length=None,
-    ):
-        return compute_realignment_loss(
-            self.bert,
-            self.realignment_transformation,
-            self.realignment_layers,
-            self.strong_alignment,
-            self.realignment_temperature,
-            self.realignment_coef,
-            self.alignment_hidden_size,
-            left_input_ids,
-            left_attention_mask,
-            left_token_type_ids,
-            left_position_ids,
-            left_head_mask,
-            left_inputs_embeds,
-            right_input_ids,
-            right_attention_mask,
-            right_token_type_ids,
-            right_position_ids,
-            right_head_mask,
-            right_inputs_embeds,
-            alignment_left_ids,
-            alignment_left_positions,
-            alignment_right_ids,
-            alignment_right_positions,
-            alignment_nb,
-            alignment_left_length,
-            alignment_right_length,
-        )
-
-
-class TrainerWithRealignment(Trainer):
-    def __init__(
-        self,
-        *args,
-        realignment_dataloader=None,
-        **kwargs,
-    ):
-        super(TrainerWithRealignment, self).__init__(*args, **kwargs)
-
-        self.realignment_dataloader = realignment_dataloader
-        if realignment_dataloader is not None:
-            self.realignment_iterator = iter(self.realignment_dataloader)
-
-    def compute_loss(self, model, inputs, return_outputs=False):
-        res = super(TrainerWithRealignment, self).compute_loss(
-            model, inputs, return_outputs=return_outputs
-        )
-
-        if self.realignment_dataloader is None:
-            return res
-
-        if return_outputs:
-            loss, outputs = res
-        else:
-            loss = res
-
-        try:
-            realignment_batch = next(self.realignment_iterator)
-        except StopIteration:
-            self.realignment_iterator = iter(self.realignment_dataloader)
-            realignment_batch = next(self.realignment_iterator)
-        realignment_batch = self._prepare_inputs(realignment_batch)
-
-        if isinstance(model, DataParallel):
-            additional_loss = model.module.compute_additional_loss(**realignment_batch)
-        else:
-            additional_loss = model.compute_additional_loss(**realignment_batch)
-
-        loss += additional_loss
-
-        return (loss, outputs) if return_outputs else loss
