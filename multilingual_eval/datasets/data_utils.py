@@ -12,6 +12,10 @@ def repeat_iterable_dataset(dataset, repeat):
     return convert_dataset_to_iterable_dataset(dataset, repeat)
 
 
+def infinite_iterable_dataset(dataset):
+    return IterableDataset(enumerate(itertools.cycle(dataset)))
+
+
 def get_signature_columns_if_needed(model, label_names=None):
     # taken from HF trainer:
     # https://github.com/huggingface/transformers/blob/f0d496828d3da3bf1e3c8fbed394d7847e839fa6/src/transformers/trainer.py#L705

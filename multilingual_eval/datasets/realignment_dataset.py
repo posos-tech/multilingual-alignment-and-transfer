@@ -5,10 +5,10 @@ import itertools
 import logging
 from transformers import DataCollatorWithPadding
 from dataclasses import dataclass
-from typing import Dict, Set, Tuple
+from typing import Dict, Optional, Set, Tuple, List
 from time import perf_counter
 import torch
-from datasets import concatenate_datasets
+from datasets import concatenate_datasets, interleave_datasets
 from datasets.iterable_dataset import IterableDataset
 from torch.utils.data import DataLoader
 import numpy as np
@@ -18,8 +18,11 @@ from multilingual_eval.datasets.data_utils import (
     TorchCompatibleIterableDataset,
     convert_dataset_to_iterable_dataset,
     get_signature_columns_if_needed,
+    infinite_iterable_dataset,
     repeat_iterable_dataset,
 )
+from multilingual_eval.datasets.translation_dataset import get_news_commentary
+from multilingual_eval.datasets.xtreme_udpos import get_xtreme_udpos
 from multilingual_eval.utils import get_tokenizer_type, subwordlist_to_wordlist
 
 
@@ -476,6 +479,30 @@ def get_realignment_dataset(
     if return_dico:
         return translation_dataset, mapper.other_dico
     return translation_dataset
+
+
+def get_multilingual_news_commentary_realignment_dataset(
+    tokenizer,
+    lang_pairs: List[Tuple[str, str]],
+    probabilities=None,
+    dico_path=None,
+    first_subword_only=False,
+):
+    datasets = [
+        get_realignment_dataset(
+            tokenizer,
+            get_news_commentary(left_lang, right_lang),
+            left_lang,
+            right_lang,
+            dico_path=dico_path,
+            first_subword_only=first_subword_only,
+        )
+        for left_lang, right_lang in lang_pairs
+    ]
+
+    return interleave_datasets(
+        list(map(infinite_iterable_dataset, datasets)), probabilities=probabilities
+    )
 
 
 def mix_realignment_with_dataset(
