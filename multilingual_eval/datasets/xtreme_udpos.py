@@ -12,6 +12,7 @@ def get_xtreme_udpos(
     limit=None,
     split="train",
     datasets_cache_dir=None,
+    interleave=True,
 ):
 
     if not isinstance(lang, list):
@@ -47,4 +48,6 @@ def get_xtreme_udpos(
 
     if n_datasets == 1:
         return datasets[0]
-    return interleave_datasets(datasets)
+    if interleave:
+        return interleave_datasets(datasets)
+    return datasets
