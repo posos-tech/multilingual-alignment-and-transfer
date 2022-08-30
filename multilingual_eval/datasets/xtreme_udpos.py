@@ -26,14 +26,15 @@ def get_xtreme_udpos(
         for lang in lang
     ]
 
+    n_datasets = len(datasets)
+
     if limit:
         limits = [
-            limit // len(datasets) + (1 if i < limit % len(datasets) else 0)
-            for i in range(len(datasets))
+            limit // n_datasets + (1 if i < limit % n_datasets else 0) for i in range(n_datasets)
         ]
 
         datasets = map(
-            lambda x: x[0].filter(lambda _, i: i < x[1] // len(datasets) + 1, with_indices=True),
+            lambda x: x[0].shuffle().filter(lambda _, i: i < x[1], with_indices=True),
             zip(datasets, limits),
         )
 
@@ -44,6 +45,6 @@ def get_xtreme_udpos(
         ),
     )
 
-    if len(datasets) == 1:
+    if n_datasets == 1:
         return datasets[0]
     return interleave_datasets(datasets)
