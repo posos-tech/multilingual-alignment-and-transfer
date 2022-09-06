@@ -453,6 +453,8 @@ def get_realignment_dataset(
     dico_fraction=1.0,
     return_dico=False,
     first_subword_only=False,
+    left_lang_id=0,
+    right_lang_id=0,
 ):
     mapper = mapper_for_realignment or DatasetMapperForRealignment(
         tokenizer,
@@ -467,6 +469,10 @@ def get_realignment_dataset(
         translation_dataset = convert_dataset_to_iterable_dataset(translation_dataset)
 
     translation_dataset = translation_dataset.map(mapper, remove_columns=[left_lang, right_lang])
+
+    translation_dataset = translation_dataset.map(
+        lambda x: {**x, "left_lang_id": [left_lang_id], "right_lang_id": [right_lang_id]}
+    )
 
     if first_subword_only:
         translation_dataset = translation_dataset.map(keep_only_first_subword)
@@ -488,6 +494,23 @@ def get_multilingual_news_commentary_realignment_dataset(
     dico_path=None,
     first_subword_only=False,
 ):
+    # by convention, we fix the pivot language as first left_lang (usually English)
+    pivot = lang_pairs[0][0]
+    lang_to_id = {
+        pivot: -1,
+        **{
+            lang: i
+            for i, lang in enumerate(
+                filter(
+                    lambda x: x != pivot,
+                    set(
+                        list(map(lambda x: x[0], lang_pairs))
+                        + list(map(lambda x: x[1], lang_pairs))
+                    ),
+                )
+            )
+        },
+    }
     datasets = [
         get_realignment_dataset(
             tokenizer,
@@ -496,8 +519,10 @@ def get_multilingual_news_commentary_realignment_dataset(
             right_lang,
             dico_path=dico_path,
             first_subword_only=first_subword_only,
+            left_lang_id=lang_to_id[left_lang],
+            right_lang_id=lang_to_id[right_lang],
         )
-        for left_lang, right_lang in lang_pairs
+        for i, (left_lang, right_lang) in enumerate(lang_pairs)
     ]
 
     return interleave_datasets(

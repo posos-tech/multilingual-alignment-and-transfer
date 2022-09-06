@@ -13,6 +13,7 @@ def get_xtreme_udpos(
     split="train",
     datasets_cache_dir=None,
     interleave=True,
+    first_subword_only=False,
 ):
 
     if not isinstance(lang, list):
@@ -41,7 +42,12 @@ def get_xtreme_udpos(
 
     datasets = list(
         map(
-            lambda x: x.map(LabelAlignmentMapper(tokenizer, label_name="pos_tags"), batched=True),
+            lambda x: x.map(
+                LabelAlignmentMapper(
+                    tokenizer, label_name="pos_tags", first_subword_only=first_subword_only
+                ),
+                batched=True,
+            ),
             datasets,
         ),
     )
