@@ -1,7 +1,7 @@
 import torch
 import numpy as np
+import os
 from typing import List, Tuple, Optional, Set
-
 from transformers import AutoTokenizer
 from datasets import load_metric
 
@@ -196,3 +196,15 @@ def get_metric_fn():
         }
 
     return compute_metrics
+
+
+def post_on_slack(message: str):
+    webhook = os.getenv("SLACK_WEBHOOK")
+
+    if webhook is None:
+        return
+
+    if "requests" not in locals():
+        import requests
+
+    requests.post(webhook, json={"text": message})
