@@ -14,10 +14,15 @@ def get_xtreme_udpos(
     datasets_cache_dir=None,
     interleave=True,
     first_subword_only=False,
+    lang_id=None,
 ):
 
     if not isinstance(lang, list):
         lang = [lang]
+    if lang_id is not None:
+        if not isinstance(lang_id, list):
+            lang_id = [lang_id]
+        assert len(lang_id) == len(lang)
 
     datasets = [
         load_dataset(
@@ -51,6 +56,11 @@ def get_xtreme_udpos(
             datasets,
         ),
     )
+
+    if lang_id is not None:
+        datasets = list(
+            map(lambda x: x[0].map(lambda y: {**y, "lang_id": [x[1]]}), zip(datasets, lang_id))
+        )
 
     if n_datasets == 1:
         return datasets[0]

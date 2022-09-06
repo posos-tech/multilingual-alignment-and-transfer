@@ -493,10 +493,11 @@ def get_multilingual_news_commentary_realignment_dataset(
     probabilities=None,
     dico_path=None,
     first_subword_only=False,
+    lang_to_id=None,
 ):
     # by convention, we fix the pivot language as first left_lang (usually English)
     pivot = lang_pairs[0][0]
-    lang_to_id = {
+    lang_to_id = lang_to_id or {
         pivot: -1,
         **{
             lang: i

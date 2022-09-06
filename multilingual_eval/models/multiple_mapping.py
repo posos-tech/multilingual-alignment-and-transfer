@@ -42,7 +42,7 @@ class MultipleMappings(torch.nn.Module):
     def forward(self, right_emb, pair_id):
         res = torch.zeros_like(right_emb)
         for i in range(right_emb.shape[0]):
-            if pair_id[i] == -1:
+            if int(pair_id[i][0]) == -1:
                 res[i] = right_emb[i]
                 continue
             res[i] = F.linear(
