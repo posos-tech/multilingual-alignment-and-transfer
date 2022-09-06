@@ -202,8 +202,7 @@ def model_with_realignment_factory(
             return_dict = usual_args.get("return_dict")
             is_usual_args_used = self.check_usual_args(**usual_args)
             if is_usual_args_used and left_input_ids is not None:
-                # TODO add mapping here !!
-                res = super().forward(**usual_args)
+                res = super().forward(**usual_args, lang_id=lang_id)
                 if labels is not None:
                     if return_dict:
                         res.loss += realignment_loss

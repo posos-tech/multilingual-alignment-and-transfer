@@ -40,18 +40,20 @@ class MultipleMappings(torch.nn.Module):
             self.bias.data.zero_()
 
     def forward(self, right_emb, pair_id):
+        res = torch.zeros_like(right_emb)
         for i in range(right_emb.shape[0]):
             if pair_id[i] == -1:
+                res[i] = right_emb[i]
                 continue
-            right_emb[i] = F.linear(
+            res[i] = F.linear(
                 right_emb[i],
                 self.mapping[pair_id[i][0]],
                 bias=self.bias[pair_id[i][0]] if self.bias is not None else None,
             )
-        return right_emb
+        return res
 
     def orthogonalize(self):
-        W = self.mapping.weight.data
+        W = self.mapping.data
         for i in range(self.nb_langs):
             W[i].copy_(
                 (1 + self.map_beta) * W[i] - self.map_beta * W[i].mm(W[i].transpose(0, 1).mm(W[i]))
