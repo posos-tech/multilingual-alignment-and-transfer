@@ -1,3 +1,6 @@
+import logging
+
+
 class LabelAlignmentMapper:
     def __init__(self, tokenizer, label_name="labels", first_subword_only=False):
         self.tokenizer = tokenizer
@@ -25,7 +28,7 @@ class LabelAlignmentMapper:
                 # For the other tokens in a word, we set the label to either the current label or -100, depending on
                 # the first_subword_only flag.
                 elif self.first_subword_only:
-                    label_ids.append(100)
+                    label_ids.append(-100)
                 else:
                     label_ids.append(label[word_idx])
                 previous_word_idx = word_idx
