@@ -4,6 +4,7 @@ import os
 from typing import List, Tuple, Optional, Set
 from transformers import AutoTokenizer
 from datasets import load_metric
+import logging
 
 
 def get_nb_layers(model):
@@ -198,8 +199,10 @@ def get_metric_fn():
     return compute_metrics
 
 
-def post_on_slack(message: str):
+def post_on_slack(message: str, thread_ts=None):
     webhook = os.getenv("SLACK_WEBHOOK")
+    channel = os.getenv("SLACK_CHANNEL")
+    slack_oauth = os.getenv("SLACK_OAUTH")
 
     if webhook is None:
         return
@@ -207,4 +210,23 @@ def post_on_slack(message: str):
     if "requests" not in locals():
         import requests
 
+    if channel is not None and slack_oauth is not None:
+        res = requests.post(
+            "https://slack.com/api/chat.postMessage",
+            json={
+                "channel": channel,
+                "text": message,
+                **({"thread_ts": thread_ts} if thread_ts is not None else {}),
+            },
+            headers={"Authorization": f"Bearer {slack_oauth}"},
+        )
+        try:
+            result = res.json().get("ts")
+        except:
+            logging.error(f"slack alert: could not retrieve `ts`: {res.content}")
+            result = None
+        return result
+
     requests.post(webhook, json={"text": message})
+
+    return None
