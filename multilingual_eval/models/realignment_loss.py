@@ -121,7 +121,7 @@ def compute_realignment_loss(
 
         if realignment_loss == "l2":
             loss = F.mse_loss(aligned_left_repr, aligned_right_repr)
-        elif realignment_loss == "constrastive":
+        elif realignment_loss == "contrastive":
             all_left_repr = sum_ranges_and_put_together(
                 left_hidden_states[layer], alignment_left_positions
             )
