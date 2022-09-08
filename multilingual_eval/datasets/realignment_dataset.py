@@ -492,7 +492,7 @@ def get_multilingual_news_commentary_realignment_dataset(
     lang_pairs: List[Tuple[str, str]],
     probabilities=None,
     dico_path=None,
-    first_subword_only=False,
+    first_subword_only=True,
     lang_to_id=None,
 ):
     # by convention, we fix the pivot language as first left_lang (usually English)

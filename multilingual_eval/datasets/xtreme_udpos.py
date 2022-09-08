@@ -13,7 +13,7 @@ def get_xtreme_udpos(
     split="train",
     datasets_cache_dir=None,
     interleave=True,
-    first_subword_only=False,
+    first_subword_only=True,
     lang_id=None,
 ):
 
