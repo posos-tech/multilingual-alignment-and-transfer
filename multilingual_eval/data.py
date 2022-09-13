@@ -222,6 +222,7 @@ def get_dicos(
     right_voc=None,
     left_voc=None,
     tokenizer=None,
+    tokenize=True,
 ):
     """
     Retrieve forward and backward crosslingual dictionaries under the
@@ -245,11 +246,15 @@ def get_dicos(
             if len(words) != 2:
                 continue
             w1, w2 = words
-            new_w1 = tuple(tokenizer.tokenize(w1))
-            new_w2 = tuple(tokenizer.tokenize(w2))
+            if tokenize:
+                new_w1 = tuple(tokenizer.tokenize(w1))
+                new_w2 = tuple(tokenizer.tokenize(w2))
 
-            w1 = "".join(new_w1)
-            w2 = "".join(new_w2)
+                w1 = "".join(new_w1)
+                w2 = "".join(new_w2)
+            else:
+                new_w1 = w1
+                new_w2 = w2
 
             if ignore_identical and new_w1 == new_w2:
                 continue
@@ -271,11 +276,15 @@ def get_dicos(
             if len(words) != 2:
                 continue
             w1, w2 = words
-            new_w1 = tuple(tokenizer.tokenize(w1))
-            new_w2 = tuple(tokenizer.tokenize(w2))
+            if tokenize:
+                new_w1 = tuple(tokenizer.tokenize(w1))
+                new_w2 = tuple(tokenizer.tokenize(w2))
 
-            w1 = "".join(new_w1)
-            w2 = "".join(new_w2)
+                w1 = "".join(new_w1)
+                w2 = "".join(new_w2)
+            else:
+                new_w1 = w1
+                new_w2 = w2
 
             if ignore_identical and new_w1 == new_w2:
                 continue

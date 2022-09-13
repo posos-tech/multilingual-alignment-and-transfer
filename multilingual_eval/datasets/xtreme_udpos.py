@@ -2,6 +2,10 @@ from typing import List, Union
 import pycountry
 
 from datasets import load_dataset, interleave_datasets
+from multilingual_eval.datasets.code_switching import (
+    get_dataset_with_code_swicthing,
+)
+from multilingual_eval.datasets.data_utils import convert_dataset_to_iterable_dataset
 
 from multilingual_eval.datasets.label_alignment import LabelAlignmentMapper
 
@@ -15,6 +19,9 @@ def get_xtreme_udpos(
     interleave=True,
     first_subword_only=True,
     lang_id=None,
+    dictionaries_for_code_switching=None,
+    return_length=False,
+    n_epochs=1,
 ):
 
     if not isinstance(lang, list):
@@ -23,6 +30,9 @@ def get_xtreme_udpos(
         if not isinstance(lang_id, list):
             lang_id = [lang_id]
         assert len(lang_id) == len(lang)
+
+    if dictionaries_for_code_switching and not isinstance(dictionaries_for_code_switching[0], list):
+        dictionaries_for_code_switching = [dictionaries_for_code_switching]
 
     datasets = [
         load_dataset(
@@ -45,6 +55,23 @@ def get_xtreme_udpos(
             zip(datasets, limits),
         )
 
+    if n_datasets == 1:
+        datasets = [next(iter(datasets))]
+    elif interleave:
+        datasets = [interleave_datasets(datasets)]
+
+    if return_length:
+        lengths = list(map(len, datasets))
+
+    if n_epochs > 1:
+        datasets = map(lambda x: convert_dataset_to_iterable_dataset(x, n_epochs), datasets)
+
+    if dictionaries_for_code_switching:
+        datasets = map(
+            lambda x: get_dataset_with_code_swicthing(x[1], dictionaries_for_code_switching[x[0]]),
+            enumerate(datasets),
+        )
+
     datasets = list(
         map(
             lambda x: x.map(
@@ -62,8 +89,10 @@ def get_xtreme_udpos(
             map(lambda x: x[0].map(lambda y: {**y, "lang_id": [x[1]]}), zip(datasets, lang_id))
         )
 
-    if n_datasets == 1:
+    if n_datasets == 1 or interleave:
+        if return_length:
+            return datasets[0], lengths[0]
         return datasets[0]
-    if interleave:
-        return interleave_datasets(datasets)
+    if return_length:
+        return datasets, lengths
     return datasets

@@ -5,7 +5,11 @@ import inspect
 
 
 def convert_dataset_to_iterable_dataset(dataset, repeat=1):
-    return IterableDataset(enumerate(itertools.chain(*[dataset.shuffle() for _ in range(repeat)])))
+    return IterableDataset(
+        enumerate(
+            itertools.chain(*[dataset if i == 0 else dataset.shuffle() for i in range(repeat)])
+        )
+    )
 
 
 def repeat_iterable_dataset(dataset, repeat):
