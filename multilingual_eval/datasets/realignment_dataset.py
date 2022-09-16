@@ -119,8 +119,8 @@ class DatasetMapperForRealignment:
         right_tokens = self.tokenizer.tokenize(right_sent)
 
         if self.max_length is not None:
-            left_tokens = left_tokens[:self.max_length]
-            right_tokens = right_tokens[:self.max_length]
+            left_tokens = left_tokens[: self.max_length - 2]
+            right_tokens = right_tokens[: self.max_length - 2]
 
         return left_tokens, right_tokens
 
@@ -302,16 +302,12 @@ class DatasetMapperForRealignment:
 
         return {
             **{
-                f"left_{k}": v
-                for k, v in self.tokenizer(
-                    left_sent, truncation=True, max_length=self.max_length
-                ).items()
+                f"left_{k}": v[: self.max_length] if self.max_length is not None else v
+                for k, v in self.tokenizer(left_sent).items()
             },
             **{
-                f"right_{k}": v
-                for k, v in self.tokenizer(
-                    right_sent, truncation=True, max_length=self.max_length
-                ).items()
+                f"right_{k}": v[: self.max_length] if self.max_length is not None else v
+                for k, v in self.tokenizer(right_sent).items()
             },
             "alignment_left_ids": alignment_left_ids,
             "alignment_right_ids": alignment_right_ids,
