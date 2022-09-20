@@ -22,6 +22,7 @@ def get_xtreme_udpos(
     dictionaries_for_code_switching=None,
     return_length=False,
     n_epochs=1,
+    remove_useless=True,
 ):
 
     if not isinstance(lang, list):
@@ -88,6 +89,9 @@ def get_xtreme_udpos(
         datasets = list(
             map(lambda x: x[0].map(lambda y: {**y, "lang_id": [x[1]]}), zip(datasets, lang_id))
         )
+
+    if remove_useless:
+        datasets = list(map(lambda x: x.remove_columns(["tokens", "pos_tags"]), datasets))
 
     if n_datasets == 1 or interleave:
         if return_length:
