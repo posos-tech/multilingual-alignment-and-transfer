@@ -28,6 +28,9 @@ def during_strategy_training_loop(
     if log_in_wandb:
         import wandb
 
+    if model.device.type != "cuda" and torch.cuda.device_count() > 0:
+        model = model.to(0)
+
     # define optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=2e-5)
 
