@@ -2,6 +2,7 @@ import logging
 from torch.utils.data import DataLoader, DistributedSampler
 import torch
 from transformers import DataCollatorForTokenClassification
+from transformers.optimization import AdamW, get_scheduler
 
 
 from multilingual_eval.training.epoch_loop import during_strategy_epoch_loop
@@ -32,7 +33,7 @@ def during_strategy_training_loop(
         model = model.to(0)
 
     # define optimizer
-    optimizer = torch.optim.Adam(model.parameters(), lr=2e-5)
+    optimizer = AdamW(model.parameters(), lr=5e-5, betas=(0.9, 0.999), eps=1e-8)
 
     task_dataloader = DataLoader(
         task_dataset,
