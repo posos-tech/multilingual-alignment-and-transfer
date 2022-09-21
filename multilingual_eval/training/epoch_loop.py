@@ -37,28 +37,28 @@ def during_strategy_epoch_loop(
             optimizer.zero_grad()
             accumulated_steps = 0
             total_loss = 0
+            task_loss = 0
 
             realignment_iterator, realignment_batch = get_next_or_restart(
                 realignment_dataloader, realignment_iterator
             )
 
-            # Note that the coefficient is already in the model definition
             realignment_loss = get_realignment_loss_for_batch(model, realignment_batch).loss
-            replicas = replicate_if_possible(model)
-            task_loss = [0] * len(replicas)
-            max_replica_reached = 0
 
-        batches = scatter_kwargs_if_needed(batch)
-        outputs = parallel_apply_if_needed(replicas[: len(batches)], ((),) * len(batches), batches)
-        for i, output in enumerate(outputs):
-            task_loss[i] += output["loss"] if isinstance(output, dict) else output[0]
-            max_replica_reached = max(i, max_replica_reached)
-            accumulated_steps += 1
+        if torch.cuda.device_count() > 1:
+            outputs = torch.nn.parallel.data_parallel(model, None, module_kwargs=batch)
+            tmp_loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+            task_loss += tmp_loss.mean()
+        else:
+            batch = bring_batch_to_model(batch, model)
+            outputs = model(**batch)
+            task_loss += outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+        accumulated_steps += 1
 
         if i % task_accumulation_steps == task_accumulation_steps - 1:
-            task_loss = gather_if_needed(task_loss[:max_replica_reached], output_device=0)
-            task_loss = sum(task_loss) / accumulated_steps
+            task_loss /= accumulated_steps
 
+            # Note that the coefficient is already in the model definition
             total_loss = task_loss + realignment_loss
 
             total_loss.backward()
@@ -79,9 +79,7 @@ def during_strategy_epoch_loop(
                         }
                     )
     if i % task_accumulation_steps != task_accumulation_steps - 1:
-        task_loss = gather_if_needed(task_loss[:max_replica_reached], output_device=0)
-        task_loss = sum(task_loss) / accumulated_steps
-
+        task_loss /= accumulated_steps
         total_loss = task_loss + realignment_loss
 
         total_loss.backward()
