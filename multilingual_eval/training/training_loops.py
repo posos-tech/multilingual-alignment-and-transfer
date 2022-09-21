@@ -9,10 +9,13 @@ from multilingual_eval.training.epoch_loop import epoch_loop
 from multilingual_eval.datasets.realignment_dataset import (
     RealignmentAndOtherCollator,
 )
-from multilingual_eval.training.evaluation_loops import evaluate_several_token_classification
+from multilingual_eval.training.evaluation_loops import (
+    evaluate_several_token_classification,
+)
 
 
 def realignment_training_loop(
+    output_dir,
     tokenizer,
     model,
     task_dataset: DataLoader,

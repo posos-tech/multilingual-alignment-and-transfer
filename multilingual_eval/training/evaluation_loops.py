@@ -1,9 +1,12 @@
 from collections import defaultdict
+from typing import Dict
 from multilingual_eval.training.utils import bring_batch_to_model, prefix_dictionary
 
 from torch.utils.data import DataLoader
-from transformers import DataCollatorForTokenClassification
+from transformers import DataCollatorForTokenClassification, TrainingArguments
+from transformers.trainer_pt_utils import nested_concat
 
+from multilingual_eval.trainer import TrainerWithSeveralEvalDatasets
 from multilingual_eval.utils import get_metric_fn
 
 
@@ -12,8 +15,8 @@ def evaluate_token_classification(model, eval_dataloader, prefix="eval"):
 
     metric_fn = get_metric_fn()
 
-    agg = defaultdict(lambda: 0)
-    divisor = defaultdict(lambda: 0)
+    all_labels = None
+    all_predictions = None
     for i, batch in enumerate(eval_dataloader):
         labels = batch["labels"].numpy()
         batch = bring_batch_to_model(batch, model)
@@ -21,12 +24,16 @@ def evaluate_token_classification(model, eval_dataloader, prefix="eval"):
         predictions = model(**batch, return_dict=True).logits
         predictions = predictions.detach().cpu().numpy()
 
-        next_res = metric_fn((predictions, labels))
-        for key, value in next_res.items():
-            agg[key] += value * predictions.shape[0]
-            divisor[key] += predictions.shape[0]
+        all_labels = (
+            labels if all_labels is None else nested_concat(all_labels, labels, padding_index=-100)
+        )
+        all_predictions = (
+            predictions
+            if all_predictions is None
+            else nested_concat(all_predictions, predictions, padding_index=-100)
+        )
 
-    return prefix_dictionary({k: v / divisor[k] for k, v in agg.items()}, prefix)
+    return prefix_dictionary(metric_fn((all_predictions, all_labels)), prefix)
 
 
 def evaluate_several_token_classification(
