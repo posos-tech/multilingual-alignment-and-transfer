@@ -23,7 +23,7 @@ def evaluate_token_classification(model, eval_dataloader, prefix="eval"):
 
         next_res = metric_fn((predictions, labels))
         for key, value in next_res.items():
-            agg[key] += value
+            agg[key] += value * predictions.shape[0]
             divisor[key] += predictions.shape[0]
 
     return prefix_dictionary({k: v / divisor[k] for k, v in agg.items()}, prefix)
