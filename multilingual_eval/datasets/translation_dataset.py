@@ -5,6 +5,9 @@ from datasets import get_dataset_infos, load_dataset, get_dataset_config_names
 
 
 def get_news_commentary(lang1: str, lang2: str, cache_dir=None):
+    """
+    Load and normalize the news_commentary dataset for a give pair of language
+    """
 
     subsets = set(get_dataset_infos("news_commentary").keys())
 
@@ -30,6 +33,9 @@ def get_news_commentary(lang1: str, lang2: str, cache_dir=None):
 
 
 def get_opus100(lang1: str, lang2: str, split="train", cache_dir=None):
+    """
+    Load and normalize the opus100 dataset for a give pair of language
+    """
 
     subsets = set(get_dataset_config_names("opus100"))
 
@@ -55,4 +61,7 @@ def get_opus100(lang1: str, lang2: str, split="train", cache_dir=None):
 
 
 def get_translation_langs(dataset_name: Str):
+    """
+    Get available language pairs for a given translation dataset
+    """
     return list(map(lambda x: tuple(x.split("-")), get_dataset_config_names(dataset_name)))

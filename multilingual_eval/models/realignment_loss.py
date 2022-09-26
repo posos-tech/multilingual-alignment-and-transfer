@@ -44,6 +44,34 @@ def compute_realignment_loss(
     alignment_left_length=None,  # [[i]]
     alignment_right_length=None,  # [[i]]
 ):
+    """
+    Fonction for computing the realignment loss on a batch of realignment task
+
+    Arguments:
+    - encoder: the encoder of the model to build the representation of each sentence (typically model.bert)
+    - realignment_tranformation: a transformation to apply to all transformation before realignment (typically some linear layers)
+    - realignment_layers: the layers of the encoder on which to perform the realignemnt (typically [-1])
+    - strong_alignment: whether to perform strong or weak realignment (only for contrastive method)
+    - realignment_temperature: temperature in the softmax for contrastive learning
+    - realignment_coef: a coefficient to apply to the loss
+    - no_backward_for_source: whether to deactivate backward pass on the encoder applied on source (can work as a regularization method), default to False (because it doesn't really work)
+    - regularization_lambda: coefficient to apply to the regularization term (if there is one)
+    - initial_model: copy of the model to use in the regularization (if there is one)
+    - realignment_loss: loss used, either contrastive or l2
+    - train_only_mapping: default False, desactivates backpropagation through encoder (but not through mapping if there is one)
+    - left_*: * for the left sentence
+    - left_lang_id: id of the language of the left sentence
+    - right_*: * for the right sentence
+    - right_lang_id: id of the language of the right sentence
+    - alignment_left_positions: position range of all words in the left sentence (in term of subword)
+    - alignment_right_positions: same for the right sentence
+    - alignment_left_ids: index of aligned word in alignment_left_positions
+    - alignment_right_ids: index of corresponding aligned words in alignment_right_positions
+    - alignment_nb: the number of aligned pair (usefull for truncation)
+    - alignment_left_length: the number of word in alignment_left_positions (usefull for truncation)
+    - alignment_right_length: the same for the right sentence
+    """
+
     total_loss = None
 
     left_context_manager = torch.no_grad() if no_backward_for_source else DumbContext()

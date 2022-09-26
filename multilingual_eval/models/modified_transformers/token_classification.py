@@ -12,7 +12,19 @@ from multilingual_eval.models.modified_transformers.bert_model import (
 
 
 def token_classifier_with_optional_mapping_factory(BaseClass):
+    """
+    Factory function for creating a custom class for a sequence classification model
+    that builds on top of an existing one (BaseClass) by adding an optional orthogonal
+    mapping to the encoder (and lang_id in the forward method)
+    """
+
     class CustomModelForTokenClassification(BaseClass):
+        """
+        Custom class for a sequence classification model
+        that builds on top of an existing one (BaseClass) by adding an optional orthogonal
+        mapping to the encoder (and lang_id in the forward method)
+        """
+
         def __init__(self, config, with_mapping=False, nb_pairs=1):
             super().__init__(config)
 

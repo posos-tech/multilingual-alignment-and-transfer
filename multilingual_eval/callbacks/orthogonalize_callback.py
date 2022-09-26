@@ -9,6 +9,14 @@ from multilingual_eval.models.with_realignment_factory import (
 
 
 class OrthogonalizeMappingCallback(TrainerCallback):
+    """
+    Callback for HF Trainer which perform a regularization step that enforce the 'mapping'
+    attribute of the trained model to by an orthogonal matrix
+
+    This only work with models built with multilingual_eval.models.with_realignment_factory.model_with_realignment_factory
+    AND having a BERT encoder (does not work with RoBERTa)
+    """
+
     def on_step_end(
         self,
         args: TrainingArguments,

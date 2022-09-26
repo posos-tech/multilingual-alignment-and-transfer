@@ -7,6 +7,11 @@ import torch.nn.functional as F
 
 
 class MultipleMappings(torch.nn.Module):
+    """
+    Torch module for using orthogonal mappings to map several language
+    representation to a pivot one
+    """
+
     def __init__(
         self,
         nb_langs,
@@ -40,6 +45,10 @@ class MultipleMappings(torch.nn.Module):
             self.bias.data.zero_()
 
     def forward(self, right_emb, pair_id):
+        """
+        Apply an orthogonal mapping to each element of right_emb according
+        to the pair_id (language id) provided
+        """
         res = torch.zeros_like(right_emb)
         for i in range(right_emb.shape[0]):
             if int(pair_id[i][0]) == -1:
@@ -53,6 +62,9 @@ class MultipleMappings(torch.nn.Module):
         return res
 
     def orthogonalize(self):
+        """
+        perform an update step to orthogonalize the mapping matrices
+        """
         W = self.mapping.data
         for i in range(self.nb_langs):
             W[i].copy_(

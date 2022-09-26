@@ -10,6 +10,12 @@ from multilingual_eval.datasets.data_utils import (
 
 
 class CodeSwitchingMapper:
+    """
+    Class for a callable that can be used as argument of datasets.Dataset.map()
+    It will randomly replaced words in the "tokens" field by translation according
+    to a set of bilingual dictionaries
+    """
+
     def __init__(
         self,
         dictionaries: List[Dict[str, Set[str]]],
@@ -54,6 +60,10 @@ class CodeSwitchingMapper:
 
 
 def get_dataset_with_code_swicthing(dataset, dictionaries, probs=None, replace_prob=0.5):
+    """
+    Function that allows to apply the code switching mapper more easily
+    """
+
     mapper = CodeSwitchingMapper(dictionaries, probs=probs, replace_prob=replace_prob)
 
     if isinstance(dataset, (HFDataset, Dataset)):

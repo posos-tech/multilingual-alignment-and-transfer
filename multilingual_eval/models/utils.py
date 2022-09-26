@@ -33,4 +33,7 @@ def sum_ranges_and_put_together(
 
 
 def remove_batch_dimension(input: torch.Tensor, lengths: torch.Tensor):
+    """
+    Truncates batche inputs according to batch lengths and concatenate them, removing the batch dimension
+    """
     return torch.cat((*[input[b][: lengths[b]] for b in range(input.shape[0])],))

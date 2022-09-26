@@ -16,11 +16,11 @@ from multilingual_eval.training.evaluation_loops import (
 
 
 def realignment_training_loop(
-    output_dir,
     tokenizer,
     model,
     task_dataset: DataLoader,
     realignment_dataset: DataLoader,
+    strategy="during",
     evaluation_datasets=None,
     same_language_evaluation_dataset=None,
     evaluation_prefixes=None,
@@ -30,11 +30,35 @@ def realignment_training_loop(
     accumulation_steps=1,
     logging_steps=100,
     log_in_wandb=False,
-    strategy="during",
     metric_fn=None,
     realignment_coef=0.1,
     realignment_coef_scheduler=None,
 ):
+    """
+    Performs a training loop, with or without realignment
+
+    Arguments:
+
+    - tokenizer
+    - model
+    - task_dataset: training dataset for the fine-tuning task (must have a length)
+    - realignment_dataset: iterable dataset for the realignment auxiliary task
+    - strategy: default "during", the realignment strategy (either "baseline" for no realignment, or "after", "before" or "during")
+    - evaluation_datasets: optional list of evaluation datasets
+    - same_language_evaluation_dataset: optional evaluation dataset on same language as training
+    - evaluation_prefixes: optional list of prefixes for evaluation datasets metrics
+    - task_batch_size: batch size for the training task (not considering accumulation steps)
+    - realignment_batch_size: batch size of the realignment step
+    - n_epochs: number of epochs for the fine-tuning task
+    - accumulation_steps: number of accumulation steps for the fine-tuning task
+    - logging_steps: int, default 100, number of steps (in term of optimization steps, hence nb of batch / accumulation steps) between each log of training stats
+    - log_in_wandb: whether to log training stats in wandb (conditional import)
+    - metric_fn: function that gets the metric from the overall predictions and labels
+    - realignment_coef: float, default 0.1, the coefficient to apply to the realignment loss
+    - realignment_coef_scheduler: a function that takes an integer (the epoch) and return a float, the coefficient to apply to the realignment loss at
+        given epochs, overrides realignment_coef
+    """
+
     if log_in_wandb:
         import wandb
 

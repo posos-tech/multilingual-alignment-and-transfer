@@ -6,9 +6,8 @@ import logging
 from transformers import DataCollatorWithPadding
 from dataclasses import dataclass
 from typing import Dict, Optional, Set, Tuple, List
-from time import perf_counter
 import torch
-from datasets import concatenate_datasets, interleave_datasets
+from datasets import interleave_datasets
 from datasets.iterable_dataset import IterableDataset
 from torch.utils.data import DataLoader
 import numpy as np
@@ -28,10 +27,17 @@ from multilingual_eval.utils import get_tokenizer_type, subwordlist_to_wordlist
 
 @dataclass
 class BilingualDictionary:
+    """
+    Class for holding pairs of words in a bilingual dictionary
+    """
+
     forward: Dict[Tuple[str], Set[Tuple[str]]]
     backward: Dict[Tuple[str], Set[Tuple[str]]]
 
     def sample_dictionary(self, fraction):
+        """
+        sample a dictionary, usefull for train/test splits
+        """
         new_forward = defaultdict(lambda: set())
         new_backward = defaultdict(lambda: set())
 
@@ -53,21 +59,14 @@ class BilingualDictionary:
         return BilingualDictionary(remaining_forward, remaining_backward)
 
 
-def timing(func):
-    def wrapper(self, *args, **kwargs):
-        start = perf_counter()
-        res = func(self, *args, **kwargs)
-        end = perf_counter()
-        self.perfs[func.__name__] = [
-            self.perfs[func.__name__][0] + end - start,
-            self.perfs[func.__name__][1] + 1,
-        ]
-        return res
-
-    return wrapper
-
-
 class DatasetMapperForRealignment:
+    """
+    Class for defining a callable that can be used as an argument of datasets.Dataset.map()
+    Applied to a translation dataset, it will create an alignment table between tokens of
+    the translated sentences and output samples for training a realignment task as expected
+    by models created with multilingual_eval.models.with_realignment_factory.model_with_realignment_factory
+    """
+
     def __init__(
         self,
         tokenizer,
@@ -112,8 +111,11 @@ class DatasetMapperForRealignment:
 
         self.max_length = max_length
 
-    @timing
-    def tokenize_sentences(self, left_sent, right_sent):
+    def tokenize_sentences(self, left_sent, right_sent) -> Tuple[List[str], List[str]]:
+        """
+        Tokenize both translated sentences and apply
+        truncation if needed
+        """
 
         if left_sent is None or right_sent is None:
             raise Exception(
@@ -129,12 +131,22 @@ class DatasetMapperForRealignment:
 
         return left_tokens, right_tokens
 
-    @timing
-    def create_multi_subwords(self, left_tokens, right_tokens):
-        # Generate potential multi-word expression (essentially for languages like mandarin chinese
-        # which are tokenized by character and have words spanning several tokens)
-        left_multi = []
-        left_multi_pos = []
+    def create_multi_subwords(self, left_tokens: List[str], right_tokens: List[str]):
+        """
+        Generates candidate multi-tokens expression for the alignment table, based
+        on the maximum length in term of tokens of words in the bilingual dictionary
+
+        Returns:
+        - left_multi: a list of tuple of strings representing the multi-word
+            candidate expressions in the left sentence (generally of size 1 except for chinese)
+        - left_multi_pos: a list of list of int of size Nx2 indicating the start and end offset of
+            each element of left_multi
+        - right_multi: left_multi but for the right sentence
+        - right_multi_pos: left_multi_pos but but for the right sentence
+        """
+
+        left_multi: List[Tuple[str]] = []
+        left_multi_pos: List[List[int]] = []
         for length in range(1, self._max_left_length + 1):
             for i in range(0, len(left_tokens) - length + 1):
                 left_multi.append(tuple(left_tokens[i : i + length]))
@@ -149,8 +161,15 @@ class DatasetMapperForRealignment:
 
         return left_multi, left_multi_pos, right_multi, right_multi_pos
 
-    @timing
     def find_aligned_words(self, left_multi, left_multi_pos, right_multi, right_multi_pos):
+        """
+        Compare subsets of consecutive tokens from both sentence and add them to the alignment table
+        if they are in the bilingual dictionary (and if there is no ambiguity)
+        Returns:
+        - aligned_left_multi_pos: a list of list of int of size Nx2 indicating the start and end offset
+            (in term of subwords) of each aligned element
+        - aligned_right_multi_pos: offsets of the translation of each word referenced by aligned_left_multi_pos
+        """
         aligned_left_multi_pos = []
         aligned_right_multi_pos = []
         for left_pos, word in zip(left_multi_pos, left_multi):
@@ -183,8 +202,10 @@ class DatasetMapperForRealignment:
             aligned_right_multi_pos.append(right_pos)
         return aligned_left_multi_pos, aligned_right_multi_pos
 
-    @timing
     def remove_overlapping_aligned(self, aligned_left_multi_pos, aligned_right_multi_pos):
+        """
+        Remove overlapping aligned pairs to avoid any confusion
+        """
         to_remove = set()
         for i, (start_i, end_i) in enumerate(aligned_left_multi_pos):
             for j, (start_j, end_j) in enumerate(aligned_left_multi_pos):
@@ -206,8 +227,12 @@ class DatasetMapperForRealignment:
         for i in to_remove:
             del aligned_left_multi_pos[i], aligned_right_multi_pos[i]
 
-    @timing
     def create_words_from_subwords(self, left_tokens, right_tokens):
+        """
+        Returns the position range of each word in each sentence in term
+        of subword/token
+        """
+
         _, left_word_positions = subwordlist_to_wordlist(
             left_tokens, split_type=self._tokenizer_type
         )
@@ -216,7 +241,6 @@ class DatasetMapperForRealignment:
         )
         return left_word_positions, right_word_positions
 
-    @timing
     def create_final_subword_list(
         self,
         left_word_positions,
@@ -224,6 +248,14 @@ class DatasetMapperForRealignment:
         aligned_left_multi_pos,
         aligned_right_multi_pos,
     ):
+        """
+        From the position ranges of aligned expressions (aligned_left_multi_pos and aligned_right_multi_pos)
+        and from the position ranges of words (left_word_positions and right_word_positions) build lists of
+        positions of all word (aligned and non-aligned) without any overlapping (alignment_left_positions and
+        alignment_right_positions) as well as the index of aligned words/expressions in those list
+        (alignment_left_ids and alignment_right_ids)
+        """
+        # Create set of positions included in aligned expressions
         left_covered_ids = set()
         for start, end in aligned_left_multi_pos:
             left_covered_ids = left_covered_ids.union(range(start, end))
@@ -237,10 +269,13 @@ class DatasetMapperForRealignment:
         alignment_left_positions = []
         alignment_right_positions = []
 
+        # Add position of entire words that are not aligned nor overlapping an aligned expression
         for start, end in left_word_positions:
             if start not in left_covered_ids and end - 1 not in left_covered_ids:
                 alignment_left_positions.append([start, end])
 
+        # Build the positions of all words as the concatenation of all entire words which do not
+        # overlap with aligned words, and the position of aligned words
         alignment_left_ids = list(
             range(
                 len(alignment_left_positions),
@@ -249,6 +284,7 @@ class DatasetMapperForRealignment:
         )
         alignment_left_positions += aligned_left_multi_pos
 
+        # Repeat the same for the right sentence
         for start, end in right_word_positions:
             if start not in right_covered_ids and end - 1 not in right_covered_ids:
                 alignment_right_positions.append([start, end])
@@ -269,6 +305,19 @@ class DatasetMapperForRealignment:
         )
 
     def __call__(self, example):
+        """
+        Take an translation sample of the form {"name_of_lang_1": "sentence", "name_of_lang_2": "sentence"}
+        and return a sample for a realignment task, with properties:
+        - left_*: (like left_input_ids) result of the tokenizer for the left sentence
+        - right_*: same for the right sentence
+        - alignment_left_positions: position range of all words in the left sentence (in term of subword)
+        - alignment_right_positions: same for the right sentence
+        - alignment_left_ids: index of aligned word in alignment_left_positions
+        - alignment_right_ids: index of corresponding aligned words in alignment_right_positions
+        - alignment_nb: the number of aligned pair (usefull for truncation)
+        - alignment_left_length: the number of word in alignment_left_positions (usefull for truncation)
+        - alignment_right_length: the same for the right sentence
+        """
         left_sent = example[self.left_key]
         right_sent = example[self.right_key]
 
@@ -325,6 +374,12 @@ class DatasetMapperForRealignment:
 
 
 class DatasetMapperForInjectingRealignmentData:
+    """
+    deprecated: not useful with the new training loop
+    Class for defining a callable that can be used as an argument of datasets.Dataset.map()
+    Inject a realignment example inside the sample of a given task
+    """
+
     def __init__(self, realignment_dataset):
         self.realignment_dataset = realignment_dataset
         self.realignment_iterator = iter(self.realignment_dataset)
@@ -340,6 +395,10 @@ class DatasetMapperForInjectingRealignmentData:
 
 
 class RealignmentCollator:
+    """
+    Data collator for building and padding batch for the realignment task
+    """
+
     def __init__(self, tokenizer, **kwargs):
         self.usual_collator = DataCollatorWithPadding(tokenizer, **kwargs)
 
@@ -398,6 +457,11 @@ class RealignmentCollator:
 
 
 def keep_only_first_subword(example):
+    """
+    function to use in datasets.Dataset.map() for considering only the first subword
+    of each word in a realignment task. This should be used simultaneously with use_first_subword_only=True
+    in LabeAlignmentMapper for a token classification task
+    """
     for key in ["alignment_left_positions", "alignment_right_positions"]:
         for i, (start, _) in enumerate(example[key]):
             example[key][i][1] = start + 1
@@ -405,6 +469,12 @@ def keep_only_first_subword(example):
 
 
 class RealignmentAndOtherCollator(RealignmentCollator):
+    """
+    deprecated: useless with the new training loop
+    Collator for building batch that contain simultaneously samples from a realignment
+    task and samples for another task, handled by self.other_collator
+    """
+
     def __init__(self, tokenizer, other_collator, **kwargs):
         super().__init__(tokenizer, **kwargs)
         self.other_collator = other_collator
@@ -477,6 +547,26 @@ def get_realignment_dataset(
     max_length=None,
     ignore_identical=True,
 ):
+    """
+    Build a realignment dataset from a translation dataset
+
+    Arguments:
+    - tokenizer
+    - translation_dataset
+    - left_lang: id of the left lang (probably 'en')
+    - right_lang
+    - dico_path: path to the directory containing files for dictionaires (like "en-fr.txt")
+    - mapper_for_realignment: None by default, can be useful if we want to define a mapper beforehand
+        and filter the dictionary (train/test split) it uses for building the alignment table
+    - dico_fraction: 1. by default, smaller if we want to sample the dictionary and use return_dico=True to return the test dictionary
+    - return_dico: False by default, whether to return the remaining subset of the dictionary which was not used for training realignment (if dico_fraction < 1.)
+    - first_subword_only: False by default, whether to realign the representation of the first subword or an average of all subwords
+    - left_lang_id: an arbitrary id for the left lang (usefull only if we use orthogonal mapping in realignment)
+    - right_lang_id: same for right
+    - seed
+    - max_length
+    - ignore_identical: whether to ignore identical words in the realignment task (default to True)
+    """
     mapper = mapper_for_realignment or DatasetMapperForRealignment(
         tokenizer,
         left_lang,
@@ -523,6 +613,25 @@ def get_multilingual_news_commentary_realignment_dataset(
     max_length=None,
     ignore_identical=True,
 ):
+    """
+    Retrieve one or several translation datasets and transform them to create a single realignment dataset
+
+    Arguments:
+    - tokenizer
+    - lang_pairs: List[Tuple[str, str]], contains tuple of languages (alpha 2 code) for getting translations datasets and dictionaries
+        e.g. [("en", "fr")]
+    - probabilities: probabilities associated with each pair of language for when interleaving the datasets
+    - dico_path: path to the directory containing files for dictionaires (like "en-fr.txt")
+    - first_subword_only: True by default, whether to realign the representation of the first subword or an average of all subwords
+    - lang_to_id: None by default, dictionary which attribute an id to each language, will build one if not provided, usefull only
+        if we learn an orthogonal mapping during realignment
+    - dataset_name: 'news_commentary' by default, 'opus100' is also supported, desings the name of the translation dataset to use
+    - seed
+    - cache_dir: the datasets_cache_dir for the HF load_dataset function
+    - max_length
+    - ignore_identical: whether to ignore identical words in the realignment task (default to True)
+    """
+
     if dataset_name == "news_commentary":
         dataset_getter = get_news_commentary
     elif dataset_name == "opus100":
@@ -578,6 +687,9 @@ def mix_realignment_with_dataset(
     strategy="during",
     seed=None,
 ):
+    """
+    deprecated: useless with the new training loop
+    """
     if not isinstance(task_dataset, IterableDataset):
         epoch_len = len(task_dataset)
         iterable_task_dataset = convert_dataset_to_iterable_dataset(task_dataset, repeat=n_epochs)
@@ -622,18 +734,3 @@ def mix_realignment_with_dataset(
         raise NotImplementedError(f"Realignment strategy not implemented: {strategy}")
 
     return TorchCompatibleIterableDataset(training_dataset)
-
-
-def get_realignment_dataloader(
-    tokenizer, translation_dataset, left_lang, right_lang, dico_path, batch_size: int
-):
-    translation_dataset = get_realignment_dataset(
-        tokenizer, translation_dataset, left_lang, right_lang, dico_path
-    )
-
-    return DataLoader(
-        translation_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        collate_fn=RealignmentCollator(tokenizer),
-    )

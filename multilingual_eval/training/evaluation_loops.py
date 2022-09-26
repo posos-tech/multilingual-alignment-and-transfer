@@ -3,14 +3,16 @@ from typing import Dict
 from multilingual_eval.training.utils import bring_batch_to_model, prefix_dictionary
 
 from torch.utils.data import DataLoader
-from transformers import DataCollatorForTokenClassification, TrainingArguments
+from transformers import DataCollatorForTokenClassification
 from transformers.trainer_pt_utils import nested_concat
 
-from multilingual_eval.trainer import TrainerWithSeveralEvalDatasets
 from multilingual_eval.utils import get_metric_fn
 
 
 def evaluate_token_classification(model, eval_dataloader, prefix="eval", metric_fn=None):
+    """
+    Evaluates a model on a given dataloader
+    """
     model.eval()
 
     metric_fn = metric_fn or get_metric_fn()
@@ -39,6 +41,10 @@ def evaluate_token_classification(model, eval_dataloader, prefix="eval", metric_
 def evaluate_several_token_classification(
     tokenizer, model, datasets, batch_size, prefixes=None, overall_prefix=None, metric_fn=None
 ):
+    """
+    Evaluates a model on several datasets, also aggregates the metrics with prefix "avg".
+    Metrics will have prefixes of the form {overall_prefix}_{prefixes[i] or avg}_name_of_the_metrics
+    """
     prefixes = prefixes or [str(i) for i in range(len(datasets))]
     assert len(datasets) == len(prefixes)
     assert "avg" not in prefixes

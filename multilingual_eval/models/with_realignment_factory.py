@@ -15,7 +15,6 @@ from multilingual_eval.models.modified_transformers.token_classification import 
 from multilingual_eval.models.modified_transformers.sequence_classification import (
     CustomBertForSequenceClassification,
 )
-from multilingual_eval.models.multiple_mapping import MultipleMappings
 
 from multilingual_eval.models.realignment_loss import compute_realignment_loss
 
@@ -23,12 +22,20 @@ from multilingual_eval.models.realignment_loss import compute_realignment_loss
 def model_with_realignment_factory(
     base_class: Type[BertPreTrainedModel], output_class: Type[ModelOutput]
 ):
+    """
+    Factory function for building a class for a model that can handle a specific task (e.g.
+    token classification or sequence classification) as well as a realignment task
+    """
     if not isinstance(base_class, type(BertPreTrainedModel)):
         logging.warn(
             f"For building a model with realignment you used a base class that does not inherit from `BertPretrainedModel`, this might fail"
         )
 
     class SpecificPretrainedModelWithRealignment(base_class):
+        """
+        Model that can be trained for the same task as base_class but also for the realignment task
+        """
+
         def __init__(
             self,
             config,
@@ -112,6 +119,10 @@ def model_with_realignment_factory(
             self.regularization_lambda = regularization_lambda
 
         def reset_initial_weights_regularizer(self):
+            """
+            Resets a copy of the model to the current weights
+            (usefull for Cao et al. 2020 regularization)
+            """
             if not self.regularization_to_init:
                 return
             self.initial_model = copy.deepcopy(self.bert)

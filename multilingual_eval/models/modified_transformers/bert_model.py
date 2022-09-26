@@ -8,7 +8,22 @@ from multilingual_eval.models.contexts import DumbContext
 
 
 def encoder_with_optional_mapping_factory(BaseClass):
+    """
+    Factory function for creating a custome encoder class that modifies an existing encoder class from
+    the transformers library. This custom class allows to include an optional mapping
+    for realignment, which necessitates a new argument in the forward method, lang_id, indicating
+    which mapping to use (according to the language of the sentence passed)
+
+    It takes as argument an encoder class like BertModel or RobertaModel
+    """
+
     class CustomEncoder(BaseClass):
+        """
+        Custom encoder class which includes an optional mapping or realignment,
+        which necessitates a new argument in the forward method, lang_id, indicating
+        which mapping to use (according to the language of the sentence passed)
+        """
+
         def __init__(self, config, add_pooling_layer=True, with_mapping=False, nb_pairs=1):
             super().__init__(config, add_pooling_layer=add_pooling_layer)
             self.mapping = None
