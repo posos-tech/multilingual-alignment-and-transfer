@@ -1,7 +1,7 @@
 from typing import List, Union
-import pycountry
+import numpy as np
 
-from datasets import load_dataset, interleave_datasets, get_dataset_config_names
+from datasets import load_dataset, interleave_datasets, load_metric
 from multilingual_eval.datasets.code_switching import (
     get_dataset_with_code_swicthing,
 )
@@ -10,7 +10,7 @@ from multilingual_eval.datasets.data_utils import convert_dataset_to_iterable_da
 from multilingual_eval.datasets.label_alignment import LabelAlignmentMapper
 
 
-def get_xtreme_udpos(
+def get_wikiann_ner(
     lang: Union[List[str], str],
     tokenizer,
     limit=None,
@@ -23,6 +23,7 @@ def get_xtreme_udpos(
     return_length=False,
     n_epochs=1,
     remove_useless=True,
+    max_length=512,
 ):
 
     if not isinstance(lang, list):
@@ -37,8 +38,8 @@ def get_xtreme_udpos(
 
     datasets = [
         load_dataset(
-            "xtreme",
-            f"udpos.{pycountry.languages.get(alpha_2=elt).name}",
+            "wikiann",
+            elt,
             cache_dir=datasets_cache_dir,
         )[split]
         for elt in lang
@@ -77,7 +78,10 @@ def get_xtreme_udpos(
         map(
             lambda x: x.map(
                 LabelAlignmentMapper(
-                    tokenizer, label_name="pos_tags", first_subword_only=first_subword_only
+                    tokenizer,
+                    label_name="ner_tags",
+                    first_subword_only=first_subword_only,
+                    max_length=max_length,
                 ),
                 batched=True,
             ),
@@ -91,7 +95,12 @@ def get_xtreme_udpos(
         )
 
     if remove_useless:
-        datasets = list(map(lambda x: x.remove_columns(["tokens", "pos_tags"]), datasets))
+        datasets = list(
+            map(
+                lambda x: x.remove_columns(["tokens", "ner_tags", "langs", "spans"]),
+                datasets,
+            )
+        )
 
     if n_datasets == 1 or interleave:
         if return_length:
@@ -102,12 +111,31 @@ def get_xtreme_udpos(
     return datasets
 
 
-def get_xtreme_udpos_langs():
-    return list(
-        map(
-            lambda x: "el"
-            if x.split(".")[1] == "Greek"
-            else pycountry.languages.get(name=x.split(".")[1]).alpha_2,
-            filter(lambda x: x.startswith("udpos."), get_dataset_config_names("xtreme")),
-        )
-    )
+def get_wikiann_metric_fn():
+    metric = load_metric("seqeval")
+
+    str_labels = ["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC"]
+
+    def compute_metrics(p):
+        predictions, labels = p
+        predictions = np.argmax(predictions, axis=2)
+
+        # Remove ignored index (special tokens)
+        true_predictions = [
+            [str_labels[p] for (p, l) in zip(prediction, label) if l != -100]
+            for prediction, label in zip(predictions, labels)
+        ]
+        true_labels = [
+            [str_labels[l] for (p, l) in zip(prediction, label) if l != -100]
+            for prediction, label in zip(predictions, labels)
+        ]
+
+        results = metric.compute(predictions=true_predictions, references=true_labels)
+        return {
+            "precision": results["overall_precision"],
+            "recall": results["overall_recall"],
+            "f1": results["overall_f1"],
+            "accuracy": results["overall_accuracy"],
+        }
+
+    return compute_metrics

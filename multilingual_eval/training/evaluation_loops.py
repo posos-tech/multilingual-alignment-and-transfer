@@ -10,10 +10,10 @@ from multilingual_eval.trainer import TrainerWithSeveralEvalDatasets
 from multilingual_eval.utils import get_metric_fn
 
 
-def evaluate_token_classification(model, eval_dataloader, prefix="eval"):
+def evaluate_token_classification(model, eval_dataloader, prefix="eval", metric_fn=None):
     model.eval()
 
-    metric_fn = get_metric_fn()
+    metric_fn = metric_fn or get_metric_fn()
 
     all_labels = None
     all_predictions = None
@@ -37,7 +37,7 @@ def evaluate_token_classification(model, eval_dataloader, prefix="eval"):
 
 
 def evaluate_several_token_classification(
-    tokenizer, model, datasets, batch_size, prefixes=None, overall_prefix=None
+    tokenizer, model, datasets, batch_size, prefixes=None, overall_prefix=None, metric_fn=None
 ):
     prefixes = prefixes or [str(i) for i in range(len(datasets))]
     assert len(datasets) == len(prefixes)
@@ -52,7 +52,9 @@ def evaluate_several_token_classification(
     res = {}
     agg = defaultdict(lambda: 0)
     for dataloader, prefix in zip(dataloaders, prefixes):
-        next_res = evaluate_token_classification(model, dataloader, prefix=None)
+        next_res = evaluate_token_classification(
+            model, dataloader, prefix=None, metric_fn=metric_fn
+        )
         for key, value in next_res.items():
             agg[key] += value
         res.update(prefix_dictionary(next_res, prefix))

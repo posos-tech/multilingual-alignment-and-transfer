@@ -2,14 +2,18 @@ import logging
 
 
 class LabelAlignmentMapper:
-    def __init__(self, tokenizer, label_name="labels", first_subword_only=False):
+    def __init__(self, tokenizer, label_name="labels", first_subword_only=False, max_length=512):
         self.tokenizer = tokenizer
         self.label_name = label_name
         self.first_subword_only = first_subword_only
+        self.max_length = max_length
 
     def __call__(self, examples):
         tokenized_inputs = self.tokenizer(
-            examples["tokens"], truncation=True, is_split_into_words=True
+            examples["tokens"],
+            truncation=True,
+            is_split_into_words=True,
+            max_length=self.max_length,
         )
 
         labels = []

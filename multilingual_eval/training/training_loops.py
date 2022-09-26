@@ -31,6 +31,9 @@ def realignment_training_loop(
     logging_steps=100,
     log_in_wandb=False,
     strategy="during",
+    metric_fn=None,
+    realignment_coef=0.1,
+    realignment_coef_scheduler=None,
 ):
     if log_in_wandb:
         import wandb
@@ -79,6 +82,9 @@ def realignment_training_loop(
                 logging_steps=logging_steps,
                 log_in_wandb=log_in_wandb,
                 nb_iter=len(task_dataloader),
+                realignment_coef=realignment_coef
+                if realignment_coef_scheduler is None
+                else realignment_coef_scheduler(i),
             )
 
     for i in range(n_epochs):
@@ -91,6 +97,9 @@ def realignment_training_loop(
             task_accumulation_steps=accumulation_steps,
             logging_steps=logging_steps,
             log_in_wandb=log_in_wandb,
+            realignment_coef=realignment_coef
+            if realignment_coef_scheduler is None
+            else realignment_coef_scheduler(i),
         )
 
         if evaluation_datasets is not None:
@@ -101,13 +110,14 @@ def realignment_training_loop(
                 batch_size=task_batch_size,
                 prefixes=evaluation_prefixes,
                 overall_prefix="eval",
+                metric_fn=metric_fn,
             )
             logging.info(res)
             if log_in_wandb:
                 wandb.log(res)
         if same_language_evaluation_dataloader is not None:
             res = evaluate_token_classification(
-                model, same_language_evaluation_dataloader, prefix="eval_same"
+                model, same_language_evaluation_dataloader, prefix="eval_same", metric_fn=metric_fn
             )
             logging.info(res)
             if log_in_wandb:
@@ -124,6 +134,9 @@ def realignment_training_loop(
                 logging_steps=logging_steps,
                 log_in_wandb=log_in_wandb,
                 nb_iter=len(task_dataloader),
+                realignment_coef=realignment_coef
+                if realignment_coef_scheduler is None
+                else realignment_coef_scheduler(i),
             )
 
             if evaluation_datasets is not None:
@@ -134,14 +147,42 @@ def realignment_training_loop(
                     batch_size=task_batch_size,
                     prefixes=evaluation_prefixes,
                     overall_prefix="eval",
+                    metric_fn=metric_fn,
                 )
                 logging.info(res)
                 if log_in_wandb:
                     wandb.log(res)
             if same_language_evaluation_dataloader is not None:
                 res = evaluate_token_classification(
-                    model, same_language_evaluation_dataloader, prefix="eval_same"
+                    model,
+                    same_language_evaluation_dataloader,
+                    prefix="eval_same",
+                    metric_fn=metric_fn,
                 )
                 logging.info(res)
                 if log_in_wandb:
                     wandb.log(res)
+
+    if evaluation_datasets is not None:
+        res = evaluate_several_token_classification(
+            tokenizer,
+            model,
+            evaluation_datasets,
+            batch_size=task_batch_size,
+            prefixes=evaluation_prefixes,
+            overall_prefix="final_eval",
+            metric_fn=metric_fn,
+        )
+        logging.info(res)
+        if log_in_wandb:
+            wandb.log(res)
+    if same_language_evaluation_dataloader is not None:
+        res = evaluate_token_classification(
+            model,
+            same_language_evaluation_dataloader,
+            prefix="final_eval_same",
+            metric_fn=metric_fn,
+        )
+        logging.info(res)
+        if log_in_wandb:
+            wandb.log(res)

@@ -25,6 +25,7 @@ def epoch_loop(
     logging_steps=100,
     log_in_wandb=False,
     nb_iter=None,
+    realignment_coef=1.0,
 ):
     if realignment_dataloader is None and task_dataloader is None:
         raise Exception(
@@ -70,7 +71,9 @@ def epoch_loop(
                     realignment_dataloader, realignment_iterator
                 )
 
-                realignment_loss = get_realignment_loss_for_batch(model, realignment_batch).loss
+                realignment_loss = (
+                    realignment_coef * get_realignment_loss_for_batch(model, realignment_batch).loss
+                )
 
         if batch is not None:
             if torch.cuda.device_count() > 1:
