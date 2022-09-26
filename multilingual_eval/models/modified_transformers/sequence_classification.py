@@ -13,15 +13,16 @@ def sequence_classifier_with_optional_mapping_factory(BaseClass):
     """
     Factory function for creating a custom class for a token classification model
     that builds on top of an existing one (BaseClass) by adding an optional orthogonal
-    mapping to the encoder (and lang_id in the forward method) 
+    mapping to the encoder (and lang_id in the forward method)
     """
 
     class CustomModelForSequenceClassification(BaseClass):
         """
         Custom class for a token classification model
         that builds on top of an existing one (BaseClass) by adding an optional orthogonal
-        mapping to the encoder (and lang_id in the forward method) 
+        mapping to the encoder (and lang_id in the forward method)
         """
+
         def __init__(self, config, with_mapping=False, nb_pairs=1):
             super().__init__(config)
 
@@ -31,7 +32,7 @@ def sequence_classifier_with_optional_mapping_factory(BaseClass):
                 self,
                 BaseClass.base_model_prefix,
                 encoder_with_optional_mapping_factory(encoder_class)(
-                    config, add_pooling_layer=False, with_mapping=with_mapping, nb_pairs=nb_pairs
+                    config, add_pooling_layer=True, with_mapping=with_mapping, nb_pairs=nb_pairs
                 ),
             )
 

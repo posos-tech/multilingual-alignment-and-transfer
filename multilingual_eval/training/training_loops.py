@@ -33,6 +33,7 @@ def realignment_training_loop(
     metric_fn=None,
     realignment_coef=0.1,
     realignment_coef_scheduler=None,
+    data_collator=None,
 ):
     """
     Performs a training loop, with or without realignment
@@ -57,7 +58,9 @@ def realignment_training_loop(
     - realignment_coef: float, default 0.1, the coefficient to apply to the realignment loss
     - realignment_coef_scheduler: a function that takes an integer (the epoch) and return a float, the coefficient to apply to the realignment loss at
         given epochs, overrides realignment_coef
+    - data_collator: default None, if None, will default to DataCollatorForTokenClassification(tokenizer)
     """
+    data_collator = data_collator or DataCollatorForTokenClassification(tokenizer)
 
     if log_in_wandb:
         import wandb
@@ -72,7 +75,7 @@ def realignment_training_loop(
         task_dataset,
         shuffle=True,
         batch_size=task_batch_size,
-        collate_fn=DataCollatorForTokenClassification(tokenizer),
+        collate_fn=data_collator,
     )
     if strategy != "baseline":
         realignment_dataloader = DataLoader(
@@ -81,7 +84,7 @@ def realignment_training_loop(
             batch_size=realignment_batch_size,
             collate_fn=RealignmentAndOtherCollator(
                 tokenizer,
-                DataCollatorForTokenClassification(tokenizer),
+                data_collator,
             ),
         )
     else:
@@ -92,7 +95,7 @@ def realignment_training_loop(
             same_language_evaluation_dataset,
             shuffle=False,
             batch_size=task_batch_size,
-            collate_fn=DataCollatorForTokenClassification(tokenizer),
+            collate_fn=data_collator,
         )
 
     if strategy == "before":
@@ -135,6 +138,7 @@ def realignment_training_loop(
                 prefixes=evaluation_prefixes,
                 overall_prefix="eval",
                 metric_fn=metric_fn,
+                collator=data_collator,
             )
             logging.info(res)
             if log_in_wandb:
@@ -172,6 +176,7 @@ def realignment_training_loop(
                     prefixes=evaluation_prefixes,
                     overall_prefix="eval",
                     metric_fn=metric_fn,
+                    collator=data_collator,
                 )
                 logging.info(res)
                 if log_in_wandb:
@@ -196,6 +201,7 @@ def realignment_training_loop(
             prefixes=evaluation_prefixes,
             overall_prefix="final_eval",
             metric_fn=metric_fn,
+            collator=data_collator,
         )
         logging.info(res)
         if log_in_wandb:

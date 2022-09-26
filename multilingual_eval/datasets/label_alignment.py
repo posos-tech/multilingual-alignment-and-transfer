@@ -7,7 +7,7 @@ class LabelAlignmentMapper:
     It will perform label alignment for token classification tasks
     """
 
-    def __init__(self, tokenizer, label_name="labels", first_subword_only=False, max_length=512):
+    def __init__(self, tokenizer, label_name="labels", first_subword_only=False, max_length=None):
         self.tokenizer = tokenizer
         self.label_name = label_name
         self.first_subword_only = first_subword_only

@@ -36,7 +36,7 @@ def get_token_classification_getter(subset_loader, label_name: str, to_remove=No
         return_length=False,
         n_epochs=1,
         remove_useless=True,
-        max_length=512,
+        max_length=None,
     ):
         """
         Load a task classification dataset for a given lang

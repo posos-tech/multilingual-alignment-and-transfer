@@ -39,21 +39,26 @@ def evaluate_token_classification(model, eval_dataloader, prefix="eval", metric_
 
 
 def evaluate_several_token_classification(
-    tokenizer, model, datasets, batch_size, prefixes=None, overall_prefix=None, metric_fn=None
+    tokenizer,
+    model,
+    datasets,
+    batch_size,
+    prefixes=None,
+    overall_prefix=None,
+    metric_fn=None,
+    collator=None,
 ):
     """
     Evaluates a model on several datasets, also aggregates the metrics with prefix "avg".
     Metrics will have prefixes of the form {overall_prefix}_{prefixes[i] or avg}_name_of_the_metrics
     """
+    collator = collator or DataCollatorForTokenClassification(tokenizer)
     prefixes = prefixes or [str(i) for i in range(len(datasets))]
     assert len(datasets) == len(prefixes)
     assert "avg" not in prefixes
 
     dataloaders = [
-        DataLoader(
-            dataset, batch_size=batch_size, collate_fn=DataCollatorForTokenClassification(tokenizer)
-        )
-        for dataset in datasets
+        DataLoader(dataset, batch_size=batch_size, collate_fn=collator) for dataset in datasets
     ]
     res = {}
     agg = defaultdict(lambda: 0)
