@@ -3,7 +3,8 @@ from torch.utils.data import DataLoader, DistributedSampler
 import torch
 from transformers import DataCollatorForTokenClassification
 from transformers.optimization import AdamW, get_scheduler
-
+import numpy as np
+import random
 
 from multilingual_eval.training.epoch_loop import epoch_loop
 from multilingual_eval.datasets.realignment_dataset import (
@@ -34,6 +35,7 @@ def realignment_training_loop(
     realignment_coef=0.1,
     realignment_coef_scheduler=None,
     data_collator=None,
+    seed=None,
 ):
     """
     Performs a training loop, with or without realignment
@@ -71,11 +73,25 @@ def realignment_training_loop(
     # define optimizer
     optimizer = AdamW(model.parameters(), lr=5e-5, betas=(0.9, 0.999), eps=1e-8)
 
+    if seed is not None:
+        g = torch.Generator()
+        g.manual_seed(seed)
+
+        def seed_worker(worker_id):
+            worker_seed = torch.initial_seed() % 2**32
+            np.random.seed(worker_seed)
+            random.seed(worker_seed)
+
+    else:
+        g = None
+        seed_worker = None
     task_dataloader = DataLoader(
         task_dataset,
         shuffle=True,
         batch_size=task_batch_size,
         collate_fn=data_collator,
+        worker_init_fn=seed_worker,
+        generator=g,
     )
     if strategy != "baseline":
         realignment_dataloader = DataLoader(
