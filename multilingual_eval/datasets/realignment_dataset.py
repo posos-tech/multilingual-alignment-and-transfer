@@ -77,6 +77,7 @@ class DatasetMapperForRealignment:
         dictionary_fraction=1.0,
         max_length=None,
         ignore_identical=True,
+        add_identical=False,
     ):
         self.tokenizer = tokenizer
         self._tokenizer_type = get_tokenizer_type(tokenizer)
@@ -108,6 +109,7 @@ class DatasetMapperForRealignment:
         self._max_right_length = max(map(len, backward))
 
         self.perfs = defaultdict(lambda: [0.0, 0])
+        self.add_identical = add_identical
 
         self.max_length = max_length
 
@@ -141,8 +143,8 @@ class DatasetMapperForRealignment:
             candidate expressions in the left sentence (generally of size 1 except for chinese)
         - left_multi_pos: a list of list of int of size Nx2 indicating the start and end offset of
             each element of left_multi
-        - right_multi: left_multi but for the right sentence
-        - right_multi_pos: left_multi_pos but but for the right sentence
+        - right_multi: left_multi_pos but for the right sentence
+        - right_multi_pos: left_multi_pos but bfor the right sentence
         """
 
         left_multi: List[Tuple[str]] = []
@@ -201,6 +203,19 @@ class DatasetMapperForRealignment:
             aligned_left_multi_pos.append(left_pos)
             aligned_right_multi_pos.append(right_pos)
         return aligned_left_multi_pos, aligned_right_multi_pos
+
+    def add_identical_expressions(self, left_multi, left_multi_pos, right_multi, right_multi_pos):
+        """
+        Add identical expression found in both sentences
+        """
+        new_aligned_left_multi_pos = []
+        new_aligned_right_multi_pos = []
+        for (left_start, left_end), left_expression in zip(left_multi_pos, left_multi):
+            for (right_start, right_end), right_expression in zip(right_multi_pos, right_multi):
+                if left_expression == right_expression:
+                    new_aligned_left_multi_pos.append([left_start, left_end])
+                    new_aligned_right_multi_pos.append([right_start, right_end])
+        return new_aligned_left_multi_pos, new_aligned_right_multi_pos
 
     def remove_overlapping_aligned(self, aligned_left_multi_pos, aligned_right_multi_pos):
         """
@@ -330,6 +345,16 @@ class DatasetMapperForRealignment:
         aligned_left_multi_pos, aligned_right_multi_pos = self.find_aligned_words(
             left_multi, left_multi_pos, right_multi, right_multi_pos
         )
+
+        if self.add_identical:
+            (
+                new_aligned_left_multi_pos,
+                new_aligned_right_multi_pos,
+            ) = self.add_identical_expressions(
+                left_multi, left_multi_pos, right_multi, right_multi_pos
+            )
+            aligned_left_multi_pos += new_aligned_left_multi_pos
+            aligned_right_multi_pos += new_aligned_right_multi_pos
 
         # re-merge "words" afterwards
         # first, deduplicate aligned pairs that overlap
@@ -546,6 +571,7 @@ def get_realignment_dataset(
     seed=None,
     max_length=None,
     ignore_identical=True,
+    add_identical=False,
 ):
     """
     Build a realignment dataset from a translation dataset
@@ -576,6 +602,7 @@ def get_realignment_dataset(
         dictionary_fraction=dico_fraction,
         max_length=max_length,
         ignore_identical=ignore_identical,
+        add_identical=add_identical,
     )
 
     if not isinstance(translation_dataset, IterableDataset):
@@ -612,6 +639,7 @@ def get_multilingual_news_commentary_realignment_dataset(
     cache_dir=None,
     max_length=None,
     ignore_identical=True,
+    add_identical=False,
 ):
     """
     Retrieve one or several translation datasets and transform them to create a single realignment dataset
@@ -668,6 +696,7 @@ def get_multilingual_news_commentary_realignment_dataset(
             seed=seed,
             max_length=max_length,
             ignore_identical=ignore_identical,
+            add_identical=add_identical,
         )
         for i, (left_lang, right_lang) in enumerate(lang_pairs)
     ]
