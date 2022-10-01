@@ -116,7 +116,7 @@ def realignment_training_loop(
             collate_fn=data_collator,
         )
 
-    if strategy == "before":
+    if strategy in ["before", "before+during"]:
         for i in range(n_epochs):
             epoch_loop(
                 model,
@@ -127,9 +127,6 @@ def realignment_training_loop(
                 logging_steps=logging_steps,
                 log_in_wandb=log_in_wandb,
                 nb_iter=len(task_dataloader),
-                realignment_coef=realignment_coef
-                if realignment_coef_scheduler is None
-                else realignment_coef_scheduler(i),
             )
             for callback in epoch_callbacks:
                 callback(model)
@@ -140,7 +137,9 @@ def realignment_training_loop(
             model,
             optimizer,
             task_dataloader=task_dataloader,
-            realignment_dataloader=realignment_dataloader if strategy == "during" else None,
+            realignment_dataloader=realignment_dataloader
+            if strategy in ["during", "before+during"]
+            else None,
             task_accumulation_steps=accumulation_steps,
             logging_steps=logging_steps,
             log_in_wandb=log_in_wandb,
@@ -184,9 +183,6 @@ def realignment_training_loop(
                 logging_steps=logging_steps,
                 log_in_wandb=log_in_wandb,
                 nb_iter=len(task_dataloader),
-                realignment_coef=realignment_coef
-                if realignment_coef_scheduler is None
-                else realignment_coef_scheduler(i),
             )
             for callback in epoch_callbacks:
                 callback(model)
