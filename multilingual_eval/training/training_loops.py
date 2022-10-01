@@ -36,6 +36,7 @@ def realignment_training_loop(
     realignment_coef_scheduler=None,
     data_collator=None,
     seed=None,
+    epoch_callbacks=None,
 ):
     """
     Performs a training loop, with or without realignment
@@ -63,6 +64,7 @@ def realignment_training_loop(
     - data_collator: default None, if None, will default to DataCollatorForTokenClassification(tokenizer)
     """
     data_collator = data_collator or DataCollatorForTokenClassification(tokenizer)
+    epoch_callbacks = epoch_callbacks or []
 
     if log_in_wandb:
         import wandb
@@ -129,6 +131,8 @@ def realignment_training_loop(
                 if realignment_coef_scheduler is None
                 else realignment_coef_scheduler(i),
             )
+            for callback in epoch_callbacks:
+                callback(model)
 
     for i in range(n_epochs):
 
@@ -144,6 +148,8 @@ def realignment_training_loop(
             if realignment_coef_scheduler is None
             else realignment_coef_scheduler(i),
         )
+        for callback in epoch_callbacks:
+            callback(model)
 
         if evaluation_datasets is not None:
             res = evaluate_several_token_classification(
@@ -182,6 +188,8 @@ def realignment_training_loop(
                 if realignment_coef_scheduler is None
                 else realignment_coef_scheduler(i),
             )
+            for callback in epoch_callbacks:
+                callback(model)
 
             if evaluation_datasets is not None:
                 res = evaluate_several_token_classification(

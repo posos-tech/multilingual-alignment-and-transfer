@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 
 from multilingual_eval.contextualized_pairs import (
@@ -17,6 +18,8 @@ def select_pairs_for_evaluation(
     nb_selected=5000,
     max_length=512,
     dict_tuple=None,
+    split="all",
+    ignore_not_enough=False,
 ):
     def remove_bad_samples(example):
         if example[left_lang] is None:
@@ -46,12 +49,20 @@ def select_pairs_for_evaluation(
         avoid_repetition=False,
         max_pairs=nb_selected * 50,
         dict_tuple=dict_tuple,
+        split=split,
     )
 
-    if len(pairs) < 5000:
+    if len(pairs) < nb_selected and not ignore_not_enough:
         raise Exception(f"Not enough pair with pair {left_lang}-{right_lang}")
+    elif len(pairs) < nb_selected:
+        logging.warning(
+            f"Not enough pair with pair {left_lang}-{right_lang} ({len(pairs)} instead of {nb_selected})"
+        )
 
-    selected_pairs = np.random.choice(pairs, size=(nb_selected,), replace=False)
+    if nb_selected < len(pairs):
+        selected_pairs = np.random.choice(pairs, size=(nb_selected,), replace=False)
+    else:
+        selected_pairs = pairs
     return selected_pairs
 
 
@@ -59,12 +70,13 @@ def evaluate_alignment_on_pairs(
     model,
     tokenizer,
     selected_pairs,
-    left_lang,
-    right_lang,
+    left_lang=None,
+    right_lang=None,
     batch_size=2,
     device="cpu:0",
     strong_alignment=False,
     csls_k=10,
+    move_model_back_to_cpu=True,
 ):
     left_embs, right_embs = compute_pair_representations(
         model,
@@ -79,7 +91,8 @@ def evaluate_alignment_on_pairs(
         split_type=get_tokenizer_type(tokenizer),
     )
 
-    model = model.cpu()
+    if move_model_back_to_cpu:
+        model = model.cpu()
 
     res = []
     for layer in range(get_nb_layers(model)):

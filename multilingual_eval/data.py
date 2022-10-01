@@ -223,6 +223,7 @@ def get_dicos(
     left_voc=None,
     tokenizer=None,
     tokenize=True,
+    split="all",
 ):
     """
     Retrieve forward and backward crosslingual dictionaries under the
@@ -231,9 +232,17 @@ def get_dicos(
     indicates that we ignore pairs of words that are identically spelled across
     languages.
     """
+    if split == "all":
+        dico_suffix = ""
+    elif split == "train":
+        dico_suffix = ".0-5000"
+    elif split == "eval":
+        dico_suffix = ".5000-6500"
+    else:
+        raise NotImplementedError(f"Unsuported split type {split} expected all, train or eval")
 
-    forward_path = os.path.join(dico_path, f"{left_lang}-{right_lang}.txt")
-    backward_path = os.path.join(dico_path, f"{right_lang}-{left_lang}.txt")
+    forward_path = os.path.join(dico_path, f"{left_lang}-{right_lang}{dico_suffix}.txt")
+    backward_path = os.path.join(dico_path, f"{right_lang}-{left_lang}{dico_suffix}.txt")
 
     tokenizer = tokenizer or UniversalTokenizer()
 

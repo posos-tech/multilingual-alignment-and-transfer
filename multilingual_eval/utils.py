@@ -61,6 +61,10 @@ def compute_model_hidden_reprs(inputs, model, tokenizer, lang, device="cpu", lan
         ).to(device)
 
     if hasattr(tokenizer, "lang_to_code_id"):
+        if lang_key is None:
+            raise Exception(
+                "Tokenizer has `lang_to_code_id` attribute but no lang_key was provided."
+            )
         inputs["input_ids"][:, 0] = tokenizer.lang_to_code_id[lang_key]
 
     res = model(**inputs, output_hidden_states=True)

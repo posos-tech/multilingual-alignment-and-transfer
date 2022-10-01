@@ -75,6 +75,7 @@ class DatasetMapperForRealignment:
         dico_path=None,
         dico=None,
         dictionary_fraction=1.0,
+        split="all",
         max_length=None,
         ignore_identical=True,
         add_identical=False,
@@ -89,6 +90,7 @@ class DatasetMapperForRealignment:
                 dico_path,
                 ignore_identical=ignore_identical,
                 tokenizer=tokenizer,
+                split=split,
             )
 
             self.dico = BilingualDictionary(forward, backward)
@@ -572,6 +574,7 @@ def get_realignment_dataset(
     max_length=None,
     ignore_identical=True,
     add_identical=False,
+    split="all",
 ):
     """
     Build a realignment dataset from a translation dataset
@@ -603,6 +606,7 @@ def get_realignment_dataset(
         max_length=max_length,
         ignore_identical=ignore_identical,
         add_identical=add_identical,
+        split=split,
     )
 
     if not isinstance(translation_dataset, IterableDataset):
@@ -640,6 +644,7 @@ def get_multilingual_news_commentary_realignment_dataset(
     max_length=None,
     ignore_identical=True,
     add_identical=False,
+    split="all",
 ):
     """
     Retrieve one or several translation datasets and transform them to create a single realignment dataset
@@ -697,6 +702,7 @@ def get_multilingual_news_commentary_realignment_dataset(
             max_length=max_length,
             ignore_identical=ignore_identical,
             add_identical=add_identical,
+            split=split,
         )
         for i, (left_lang, right_lang) in enumerate(lang_pairs)
     ]
