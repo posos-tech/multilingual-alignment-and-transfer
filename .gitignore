@@ -4,3 +4,4 @@ wandb/
 local_runs/
 venvs/
 OAR.**
+tools/
