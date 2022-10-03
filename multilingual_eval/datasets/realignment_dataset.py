@@ -20,6 +20,9 @@ from multilingual_eval.datasets.data_utils import (
     infinite_iterable_dataset,
     repeat_iterable_dataset,
 )
+from multilingual_eval.datasets.fastalign_realignment import (
+    get_fastalign_realignment_dataset_from_path,
+)
 from multilingual_eval.datasets.translation_dataset import get_news_commentary, get_opus100
 from multilingual_eval.datasets.xtreme_udpos import get_xtreme_udpos
 from multilingual_eval.utils import get_tokenizer_type, subwordlist_to_wordlist
@@ -636,9 +639,11 @@ def get_multilingual_news_commentary_realignment_dataset(
     lang_pairs: List[Tuple[str, str]],
     probabilities=None,
     dico_path=None,
+    fastalign_path=None,
     first_subword_only=True,
     lang_to_id=None,
     dataset_name="news_commentary",
+    realignment_type="dictionary",
     seed=None,
     cache_dir=None,
     max_length=None,
@@ -688,24 +693,44 @@ def get_multilingual_news_commentary_realignment_dataset(
             )
         },
     }
-    datasets = [
-        get_realignment_dataset(
-            tokenizer,
-            dataset_getter(left_lang, right_lang, cache_dir=cache_dir),
-            left_lang,
-            right_lang,
-            dico_path=dico_path,
-            first_subword_only=first_subword_only,
-            left_lang_id=lang_to_id[left_lang],
-            right_lang_id=lang_to_id[right_lang],
-            seed=seed,
-            max_length=max_length,
-            ignore_identical=ignore_identical,
-            add_identical=add_identical,
-            split=split,
-        )
-        for i, (left_lang, right_lang) in enumerate(lang_pairs)
-    ]
+    if realignment_type == "dictionary":
+        datasets = [
+            get_realignment_dataset(
+                tokenizer,
+                dataset_getter(left_lang, right_lang, cache_dir=cache_dir),
+                left_lang,
+                right_lang,
+                dico_path=dico_path,
+                first_subword_only=first_subword_only,
+                left_lang_id=lang_to_id[left_lang],
+                right_lang_id=lang_to_id[right_lang],
+                seed=seed,
+                max_length=max_length,
+                ignore_identical=ignore_identical,
+                add_identical=add_identical,
+                split=split,
+            )
+            for i, (left_lang, right_lang) in enumerate(lang_pairs)
+        ]
+    elif realignment_type == "fastalign":
+        datasets = [
+            get_fastalign_realignment_dataset_from_path(
+                tokenizer,
+                fastalign_path,
+                left_lang,
+                right_lang,
+                dataset_name=dataset_name,
+                first_subword_only=first_subword_only,
+                left_lang_id=lang_to_id[left_lang],
+                right_lang_id=lang_to_id[right_lang],
+                seed=seed,
+                max_length=max_length,
+                ignore_identical=ignore_identical,
+            )
+            for i, (left_lang, right_lang) in enumerate(lang_pairs)
+        ]
+    else:
+        raise NotImplementedError(f"realignment_type `{realignment_type}` is not expected.")
 
     return interleave_datasets(
         list(map(infinite_iterable_dataset, datasets)), probabilities=probabilities
