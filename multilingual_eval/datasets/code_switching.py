@@ -26,7 +26,7 @@ class CodeSwitchingMapper:
         self._dico_probs = probs or [1.0 / len(self._dictionaries)] * len(self._dictionaries)
         self.replace_prob = replace_prob
 
-    def process_token(self, token):
+    def process_token(self, token: str):
         dictionaries = []
         probs = []
 

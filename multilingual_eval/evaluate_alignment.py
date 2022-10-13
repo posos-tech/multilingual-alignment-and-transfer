@@ -72,6 +72,8 @@ def evaluate_alignment_on_pairs(
     selected_pairs,
     left_lang=None,
     right_lang=None,
+    left_lang_id=None,
+    right_lang_id=None,
     batch_size=2,
     device="cpu:0",
     strong_alignment=False,
@@ -88,6 +90,8 @@ def evaluate_alignment_on_pairs(
         device=device,
         left_lang=left_lang,
         right_lang=right_lang,
+        left_lang_id=left_lang_id,
+        right_lang_id=right_lang_id,
         split_type=get_tokenizer_type(tokenizer),
     )
 

@@ -8,6 +8,7 @@ from multilingual_eval.training.utils import bring_batch_to_model, get_next_or_r
 def epoch_loop(
     model,
     optimizer,
+    scheduler=None,
     task_dataloader=None,
     realignment_dataloader=None,
     task_accumulation_steps=1,
@@ -15,6 +16,7 @@ def epoch_loop(
     log_in_wandb=False,
     nb_iter=None,
     realignment_coef=1.0,
+    realignment_step_callbacks=None,
 ):
     """
     Function to perform an epoch of training, with specific task samples and/or realignment task samples
@@ -30,6 +32,7 @@ def epoch_loop(
     - nb_iter: optional int, default to None, number of iteration to perform if task_dataloader is not provided
     - realignment_coef: float, default 1., coefficient to apply to the realignment loss
     """
+    realignment_step_callbacks = realignment_step_callbacks or []
     if realignment_dataloader is None and task_dataloader is None:
         raise Exception(
             "Both task_dataloader and realignment_dataloader cannot be None, we need to train on at least one dataloader"
@@ -99,6 +102,12 @@ def epoch_loop(
             total_loss.backward()
 
             optimizer.step()
+            if scheduler is not None:
+                scheduler.step()
+
+            if realignment_dataloader is not None:
+                for callback in realignment_step_callbacks:
+                    callback(model)
 
             if logging_steps is not None and (i // task_accumulation_steps) % logging_steps == 0:
                 batch_seen = math.ceil(i / task_accumulation_steps)

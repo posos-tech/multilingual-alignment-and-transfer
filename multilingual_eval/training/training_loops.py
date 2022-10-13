@@ -2,7 +2,8 @@ import logging
 from torch.utils.data import DataLoader, DistributedSampler
 import torch
 from transformers import DataCollatorForTokenClassification
-from transformers.optimization import AdamW, get_scheduler
+from transformers.optimization import get_scheduler
+from torch.optim import Adam
 import numpy as np
 import random
 
@@ -37,6 +38,7 @@ def realignment_training_loop(
     data_collator=None,
     seed=None,
     epoch_callbacks=None,
+    realignment_step_callbacks=None,
 ):
     """
     Performs a training loop, with or without realignment
@@ -65,15 +67,13 @@ def realignment_training_loop(
     """
     data_collator = data_collator or DataCollatorForTokenClassification(tokenizer)
     epoch_callbacks = epoch_callbacks or []
+    realignment_step_callbacks = realignment_step_callbacks or []
 
     if log_in_wandb:
         import wandb
 
     if model.device.type != "cuda" and torch.cuda.device_count() > 0:
         model = model.to(0)
-
-    # define optimizer
-    optimizer = AdamW(model.parameters(), lr=5e-5, betas=(0.9, 0.999), eps=1e-8)
 
     if seed is not None:
         g = torch.Generator()
@@ -117,25 +117,38 @@ def realignment_training_loop(
         )
 
     if strategy in ["before", "before+during"]:
+
+        before_optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
+
         for i in range(n_epochs):
             epoch_loop(
                 model,
-                optimizer,
+                before_optimizer,
                 task_dataloader=None,
                 realignment_dataloader=realignment_dataloader,
                 task_accumulation_steps=accumulation_steps,
                 logging_steps=logging_steps,
                 log_in_wandb=log_in_wandb,
                 nb_iter=len(task_dataloader),
+                realignment_step_callbacks=realignment_step_callbacks,
             )
             for callback in epoch_callbacks:
                 callback(model)
+
+    optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
+    scheduler = get_scheduler(
+        "linear",
+        optimizer,
+        num_warmup_steps=int(0.1 * len(task_dataloader) * 5),
+        num_training_steps=len(task_dataloader) * 5,
+    )
 
     for i in range(n_epochs):
 
         epoch_loop(
             model,
             optimizer,
+            scheduler=scheduler,
             task_dataloader=task_dataloader,
             realignment_dataloader=realignment_dataloader
             if strategy in ["during", "before+during"]
@@ -146,6 +159,7 @@ def realignment_training_loop(
             realignment_coef=realignment_coef
             if realignment_coef_scheduler is None
             else realignment_coef_scheduler(i),
+            realignment_step_callbacks=realignment_step_callbacks,
         )
         for callback in epoch_callbacks:
             callback(model)
@@ -173,16 +187,19 @@ def realignment_training_loop(
                 wandb.log(res)
 
     if strategy == "after":
+        after_optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
+
         for i in range(n_epochs):
             epoch_loop(
                 model,
-                optimizer,
+                after_optimizer,
                 task_dataloader=None,
                 realignment_dataloader=realignment_dataloader,
                 task_accumulation_steps=accumulation_steps,
                 logging_steps=logging_steps,
                 log_in_wandb=log_in_wandb,
                 nb_iter=len(task_dataloader),
+                realignment_step_callbacks=realignment_step_callbacks,
             )
             for callback in epoch_callbacks:
                 callback(model)

@@ -20,14 +20,16 @@ def get_alignment_eval_callback(
     prefix=None,
     log_in_wandb=False,
     translation_kwargs=None,
-    cuda_if_possible=True,
     batch_size=2,
+    left_lang_id=None,
+    right_lang_id=None,
 ):
     if log_in_wandb:
         import wandb
     translation_kwargs = translation_kwargs or {}
 
-    prefix = prefix or f"{split}_{left_lang}_{right_lang}"
+    prefix = prefix or split
+    whole_prefix = f"{prefix}_{left_lang}_{right_lang}"
 
     if dataset_name == "news_commentary":
         dataset_getter = get_news_commentary
@@ -59,9 +61,12 @@ def get_alignment_eval_callback(
             pairs,
             device=None,
             batch_size=batch_size,
+            csls_k=0,
             move_model_back_to_cpu=False,
+            left_lang_id=left_lang_id,
+            right_lang_id=right_lang_id,
         )
-        res = {f"{prefix}_nb_pairs": len(pairs), f"{prefix}_bli_accuracy": score[-1]}
+        res = {f"{whole_prefix}_nb_pairs": len(pairs), f"{whole_prefix}_bli_accuracy": score[-1]}
         logging.info(res)
         if log_in_wandb:
             wandb.log(res)
@@ -75,7 +80,7 @@ def get_averaged_alignment_callback(
     dico_path,
     left_lang,
     right_langs,
-    limit=500,
+    limit=5000,
     dataset_name="news_commentary",
     cache_dir=None,
     max_length=512,
@@ -83,12 +88,13 @@ def get_averaged_alignment_callback(
     prefix=None,
     log_in_wandb=False,
     translation_kwargs=None,
-    cuda_if_possible=True,
     batch_size=2,
+    lang_to_id=None,
 ):
     if log_in_wandb:
         import wandb
-    prefix = prefix or f"{split}_{left_lang}_avg"
+    prefix = prefix or split
+    whole_prefix = f"{prefix}_{left_lang}_avg"
     callbacks_by_language = [
         get_alignment_eval_callback(
             tokenizer,
@@ -102,22 +108,28 @@ def get_averaged_alignment_callback(
             split=split,
             log_in_wandb=log_in_wandb,
             translation_kwargs=translation_kwargs,
-            cuda_if_possible=cuda_if_possible,
             batch_size=batch_size,
+            prefix=prefix,
+            left_lang_id=lang_to_id[left_lang] if lang_to_id is not None else None,
+            right_lang_id=lang_to_id[elt] if lang_to_id is not None else None,
         )
         for elt in right_langs
     ]
 
     def callback(model):
         results = [
-            f(model)[f"{split}_{left_lang}_{lang}_bli_accuracy"]
+            f(model)[f"{prefix}_{left_lang}_{lang}_bli_accuracy"]
             for f, lang in zip(callbacks_by_language, right_langs)
         ]
         avg = sum(results) / max(1, len(results))
-        res = {f"{prefix}_bli_accuracy": avg}
+        res = {f"{whole_prefix}_bli_accuracy": avg}
         logging.info(res)
         if log_in_wandb:
             wandb.log(res)
         return res
 
     return callback
+
+
+def orthogonalize_callback(model):
+    model.orthogonalize()

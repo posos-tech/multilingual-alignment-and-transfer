@@ -49,7 +49,9 @@ def find_lang_key_for_mbart_like(tokenizer, lang):
     return key
 
 
-def compute_model_hidden_reprs(inputs, model, tokenizer, lang, device="cpu", lang_key=None):
+def compute_model_hidden_reprs(
+    inputs, model, tokenizer, lang, device="cpu", lang_key=None, lang_id=None
+):
     """
     Computes the hidden representations of a given models for given input representations
     Takes care of various model specificities
@@ -59,6 +61,11 @@ def compute_model_hidden_reprs(inputs, model, tokenizer, lang, device="cpu", lan
         inputs["langs"] = tokenizer.lang2id[lang] * torch.ones(
             inputs["input_ids"].size(), dtype=int
         ).to(device)
+
+    if getattr(model, "with_mapping", False) and lang_id is not None:
+        inputs["lang_id"] = lang_id * torch.ones((inputs["input_ids"].shape[0], 1), dtype=int).to(
+            device
+        )
 
     if hasattr(tokenizer, "lang_to_code_id"):
         if lang_key is None:

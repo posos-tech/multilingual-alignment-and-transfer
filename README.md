@@ -64,3 +64,25 @@ Create a `parameters.sh` file and fill according to the template provided in `sa
 Install the dependencies from the corresponding requirements that can be found in `reproduce_results`
 
 Then launch the script to reproduce the results which will be found in `reproduce_results` which is referenced by conference and year.
+
+## Inventory of the runs on wandb
+
+### scripts/21_realignment_for_pos.py
+
+- [x] s4f3ngqk (finished): grid search mBERT
+- [x] wy9tsfd9 (finished): grid-search XLM-R base
+- [x] b452skly (finished): XLM-R Large baseline
+- [x] i17jod5q (finished): mBERT baseline
+- [x] 46egpf24 (finished): XLM-R Base baseline
+
+### scripts/22_realignment_for_ner.py
+
+- [x] ta7mva4z (finished): NER XLM-R Large baseline
+- [x] kdybfi7l (finished): NER mBERT baseline
+- [x] 7wjim0zy (finished): NER XLM-R Base baseline
+- [x] 0tl6jkpq (finished): NER mBERT Base grid-search
+- [x] ixp38wf8 (finished): NER XLM-R Base grid-search
+
+### scripts/23_realignment_for_xnli.py
+
+- [ ] hf252z4e (unfinished - to resume): XNLI XLM-R Large

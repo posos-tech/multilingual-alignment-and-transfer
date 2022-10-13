@@ -11,9 +11,11 @@ from transformers.modeling_outputs import TokenClassifierOutput, SequenceClassif
 from merge_args import merge_args
 from multilingual_eval.models.modified_transformers.token_classification import (
     CustomBertForTokenClassification,
+    CustomRobertaForTokenClassification,
 )
 from multilingual_eval.models.modified_transformers.sequence_classification import (
     CustomBertForSequenceClassification,
+    CustomRobertaForSequenceClassification,
 )
 
 from multilingual_eval.models.realignment_loss import compute_realignment_loss
@@ -61,7 +63,9 @@ def model_with_realignment_factory(
             # Setting up default argument according to method
             realignment_layers = realignment_layers or [-1]
             if realignment_transformation is None:
-                realignment_transformation = [] if with_mapping else [config.hidden_size, 128]
+                realignment_transformation = (
+                    [] if realignment_loss == "l2" else [config.hidden_size, 128]
+                )
             if regularization_to_init is None:
                 regularization_to_init = realignment_loss == "l2" and not with_mapping
             if train_only_mapping is None:
@@ -125,7 +129,7 @@ def model_with_realignment_factory(
             """
             if not self.regularization_to_init:
                 return
-            self.initial_model = copy.deepcopy(self.bert)
+            self.initial_model = copy.deepcopy(self.get_encoder())
 
             for param in self.initial_model.parameters():
                 param.requires_grad = False
@@ -139,7 +143,7 @@ def model_with_realignment_factory(
         def get_compute_realignment_loss_fn(self):
             return functools.partial(
                 compute_realignment_loss,
-                self.bert,
+                self.get_encoder(),
                 self.realignment_transformation,
                 self.realignment_layers,
                 strong_alignment=self.strong_alignment,
@@ -237,4 +241,11 @@ BertForTokenClassificationWithRealignment = model_with_realignment_factory(
 )
 BertForSequenceClassificationWithRealignment = model_with_realignment_factory(
     CustomBertForSequenceClassification, SequenceClassifierOutput
+)
+
+RobertaForTokenClassificationWithRealignment = model_with_realignment_factory(
+    CustomRobertaForTokenClassification, TokenClassifierOutput
+)
+RobertaForSequenceClassificationWithRealignment = model_with_realignment_factory(
+    CustomRobertaForSequenceClassification, SequenceClassifierOutput
 )

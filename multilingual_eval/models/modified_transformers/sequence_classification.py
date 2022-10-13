@@ -26,6 +26,8 @@ def sequence_classifier_with_optional_mapping_factory(BaseClass):
         def __init__(self, config, with_mapping=False, nb_pairs=1):
             super().__init__(config)
 
+            self.with_mapping = with_mapping
+
             encoder_class = getattr(self, BaseClass.base_model_prefix).__class__
 
             setattr(
@@ -37,6 +39,12 @@ def sequence_classifier_with_optional_mapping_factory(BaseClass):
             )
 
             self.post_init()
+
+        def get_encoder(self):
+            return getattr(self, BaseClass.base_model_prefix)
+
+        def orthogonalize(self):
+            getattr(self, BaseClass.base_model_prefix).mapping.orthogonalize()
 
         def forward(
             self,

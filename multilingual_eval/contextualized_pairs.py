@@ -298,6 +298,8 @@ def compute_pair_representations(
     device="cpu",
     left_lang=None,
     right_lang=None,
+    left_lang_id=None,
+    right_lang_id=None,
     split_type="wordpiece",
     universal_tokenizer=None,
     mask_word=False,
@@ -411,7 +413,13 @@ def compute_pair_representations(
         )
         inputs = {k: v.to(model.device) for k, v in batch.items() if k != "offset_mapping"}
         hidden_repr = compute_model_hidden_reprs(
-            inputs, model, tokenizer, left_lang, device=device, lang_key=left_key
+            inputs,
+            model,
+            tokenizer,
+            left_lang,
+            device=device,
+            lang_key=left_key,
+            lang_id=left_lang_id,
         )
 
         for k, p in enumerate(pairs[i:j]):
@@ -557,7 +565,13 @@ def compute_pair_representations(
         )
         inputs = {k: v.to(model.device) for k, v in batch.items() if k != "offset_mapping"}
         hidden_repr = compute_model_hidden_reprs(
-            inputs, model, tokenizer, right_lang, device=device, lang_key=right_key
+            inputs,
+            model,
+            tokenizer,
+            right_lang,
+            device=device,
+            lang_key=right_key,
+            lang_id=right_lang_id,
         )
 
         for k, p in enumerate(pairs[i:j]):
