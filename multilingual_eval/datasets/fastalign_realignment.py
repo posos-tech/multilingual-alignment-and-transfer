@@ -3,12 +3,23 @@ import os
 
 
 class PositionAlignmentMapper:
+    """
+    Take parsed output of FastAlign and build a dataset for huggingface models
+    """
+
     def __init__(self, tokenizer, max_length=None, first_subword_only=True):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.first_subword_only = first_subword_only
 
     def __call__(self, examples):
+        """
+        examples is a dictionary with keys:
+        - left_tokens: list of str for the tokens of left sentence
+        - right_tokens: list of str for the tokens of right sentence (translation)
+        - left_positions: list of int for the position of each left element of a pair of aligned word
+        - right_positions: list of int for the corresponding right element of each alignment pair
+        """
         tokenized_left = self.tokenizer(
             examples["left_tokens"],
             truncation=True,
@@ -117,6 +128,14 @@ def get_raw_fastalign_realignment_dataset(
     keep_only_one_to_one=True,
     ignore_identical=True,
 ):
+    """
+    Parses FastAlign output and corresponding aligned dataset such as to yield dictionaries with keys:
+    - left_tokens: list of str for the tokens of left sentence
+    - right_tokens: list of str for the tokens of right sentence (translation)
+    - left_positions: list of int for the position of each left element of a pair of aligned word
+    - right_positions: list of int for the corresponding right element of each alignment pair
+    """
+
     def generator():
         with open(fastalign_input_file, "r") as input_f, open(
             fastalign_output_file, "r"
@@ -175,6 +194,9 @@ def get_fastalign_realignment_dataset(
     first_subword_only=True,
     ignore_identical=True,
 ):
+    """
+    Get realignment dataset from a parallel dataset in FastAlign format and FastAlign output
+    """
     raw_dataset = get_raw_fastalign_realignment_dataset(
         fastalign_input_file, fastalign_output_file, ignore_identical=ignore_identical
     )
@@ -199,6 +221,11 @@ def get_fastalign_realignment_dataset_from_path(
     ignore_identical=True,
     seed=None,
 ):
+    """
+    Get interleaved realignment dataset for different languages based on FastAlign,
+    simply from the directory where inputs and outputs of FastAlign are kept
+    """
+
     fastalign_input_file = os.path.join(
         fastalign_path, f"{dataset_name}_{left_lang}_{right_lang}.txt"
     )

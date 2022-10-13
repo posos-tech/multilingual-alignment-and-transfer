@@ -136,6 +136,10 @@ def get_token_classification_getter(subset_loader, label_name: str):
 
 
 def get_token_classification_metrics():
+    """
+    Default token classification metric: accuracy
+    """
+
     def compute_metrics(p):
         predictions, labels = p
         predictions = np.argmax(predictions, axis=2)

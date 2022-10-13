@@ -19,6 +19,10 @@ get_wikiann_ner = get_token_classification_getter(
 
 
 def ner_post_processing(labels):
+    """
+    Post processing following Wu et al. for NER output
+    to avoid predictions that are incompatible with BIO format
+    """
 
     new_labels = []
 

@@ -30,6 +30,9 @@ def get_xnli(
     remove_useless=True,
     max_length=512,
 ):
+    """
+    Return XNLI dataset
+    """
     if not isinstance(lang, list):
         lang = [lang]
     if lang_id is not None:

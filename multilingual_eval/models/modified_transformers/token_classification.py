@@ -43,9 +43,15 @@ def token_classifier_with_optional_mapping_factory(BaseClass):
             self.post_init()
 
         def get_encoder(self):
+            """
+            Allows to get the encoder directly
+            """
             return getattr(self, BaseClass.base_model_prefix)
 
         def orthogonalize(self):
+            """
+            Orthogonalize the mapping (throws an error if there is not any)
+            """
             getattr(self, BaseClass.base_model_prefix).mapping.orthogonalize()
 
         def forward(

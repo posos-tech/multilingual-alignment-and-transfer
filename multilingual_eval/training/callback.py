@@ -24,6 +24,10 @@ def get_alignment_eval_callback(
     left_lang_id=None,
     right_lang_id=None,
 ):
+    """
+    Callback for evaluating for a fine-tuning task
+    on a given evaluation dataset
+    """
     if log_in_wandb:
         import wandb
     translation_kwargs = translation_kwargs or {}
@@ -91,6 +95,10 @@ def get_averaged_alignment_callback(
     batch_size=2,
     lang_to_id=None,
 ):
+    """
+    Callback for performing multiple evaluation for different language and
+    computing aggregate metrics
+    """
     if log_in_wandb:
         import wandb
     prefix = prefix or split
@@ -132,4 +140,8 @@ def get_averaged_alignment_callback(
 
 
 def orthogonalize_callback(model):
+    """
+    Callback for peforming the orthogonalizing step of the mapping
+    of a model (throws an error if it has no mapping)
+    """
     model.orthogonalize()
