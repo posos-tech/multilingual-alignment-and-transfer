@@ -11,7 +11,7 @@ from multilingual_eval.datasets.data_utils import convert_dataset_to_iterable_da
 from multilingual_eval.datasets.label_alignment import LabelAlignmentMapper
 
 
-def get_token_classification_getter(subset_loader, label_name: str, to_remove=None):
+def get_token_classification_getter(subset_loader, label_name: str):
     """
     Return a function that would load a token classification dataset and perform the
     necessary transformation
@@ -21,7 +21,6 @@ def get_token_classification_getter(subset_loader, label_name: str, to_remove=No
         load the dataset for a given language (lang) using the provided cache directory (cache_dir) which is None by default
     - label_name: the name of the properties containing the labels as integers
     """
-    to_remove = to_remove or []
 
     def get_token_classification_dataset(
         lang: Union[List[str], str],
@@ -35,8 +34,8 @@ def get_token_classification_getter(subset_loader, label_name: str, to_remove=No
         dictionaries_for_code_switching=None,
         return_length=False,
         n_epochs=1,
-        remove_useless=True,
         max_length=None,
+        return_overflowing_tokens=False,
     ):
         """
         Load a task classification dataset for a given lang
@@ -108,24 +107,21 @@ def get_token_classification_getter(subset_loader, label_name: str, to_remove=No
                         label_name=label_name,
                         first_subword_only=first_subword_only,
                         max_length=max_length,
+                        return_overflowing_tokens=return_overflowing_tokens,
                     ),
                     batched=True,
+                    remove_columns=x.column_names,
                 ),
                 datasets,
             ),
         )
 
+        if return_overflowing_tokens:
+            datasets = list(map(lambda x: x.remove_columns("overflow_to_sample_mapping"), datasets))
+
         if lang_id is not None:
             datasets = list(
                 map(lambda x: x[0].map(lambda y: {**y, "lang_id": [x[1]]}), zip(datasets, lang_id))
-            )
-
-        if remove_useless:
-            datasets = list(
-                map(
-                    lambda x: x.remove_columns(["tokens", label_name] + to_remove),
-                    datasets,
-                )
             )
 
         if n_datasets == 1 or interleave:

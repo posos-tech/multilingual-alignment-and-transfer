@@ -7,11 +7,21 @@ class LabelAlignmentMapper:
     It will perform label alignment for token classification tasks
     """
 
-    def __init__(self, tokenizer, label_name="labels", first_subword_only=False, max_length=None):
+    def __init__(
+        self,
+        tokenizer,
+        label_name="labels",
+        first_subword_only=False,
+        max_length=None,
+        return_overflowing_tokens=False,
+        stride=0,
+    ):
         self.tokenizer = tokenizer
         self.label_name = label_name
         self.first_subword_only = first_subword_only
         self.max_length = max_length
+        self.return_overflowing_tokens = return_overflowing_tokens
+        self.stride = stride
 
     def __call__(self, examples):
         tokenized_inputs = self.tokenizer(
@@ -19,13 +29,20 @@ class LabelAlignmentMapper:
             truncation=True,
             is_split_into_words=True,
             max_length=self.max_length,
+            return_overflowing_tokens=self.return_overflowing_tokens,
+            stride=self.stride,
         )
 
+        n = len(tokenized_inputs["input_ids"])
+
         labels = []
-        for i, label in enumerate(examples[self.label_name]):
+        for i in range(n):
+            previous_batch_id = tokenized_inputs.get("overflow_to_sample_mapping", list(range(n)))[
+                i
+            ]
             word_ids = tokenized_inputs.word_ids(batch_index=i)
-            previous_word_idx = None
             label_ids = []
+            label = examples[self.label_name][previous_batch_id]
             for word_idx in word_ids:
                 # Special tokens have a word id that is None. We set the label to -100 so they are automatically
                 # ignored in the loss function.

@@ -15,7 +15,6 @@ get_wikiann_ner = get_token_classification_getter(
         cache_dir=cache_dir,
     ),
     "ner_tags",
-    to_remove=["langs", "spans"],
 )
 
 
