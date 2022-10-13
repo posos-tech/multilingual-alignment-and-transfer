@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from transformers import DataCollatorForTokenClassification
 from transformers.trainer_pt_utils import nested_concat
 
-from multilingual_eval.utils import get_metric_fn
+from multilingual_eval.datasets.token_classification import get_token_classification_metrics
 
 
 def evaluate_token_classification(model, eval_dataloader, prefix="eval", metric_fn=None):
@@ -15,7 +15,7 @@ def evaluate_token_classification(model, eval_dataloader, prefix="eval", metric_
     """
     model.eval()
 
-    metric_fn = metric_fn or get_metric_fn()
+    metric_fn = metric_fn or get_token_classification_metrics()
 
     all_labels = None
     all_predictions = None

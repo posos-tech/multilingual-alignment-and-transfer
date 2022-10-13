@@ -137,3 +137,31 @@ def get_token_classification_getter(subset_loader, label_name: str, to_remove=No
         return datasets
 
     return get_token_classification_dataset
+
+
+def get_token_classification_metrics():
+    def compute_metrics(p):
+        predictions, labels = p
+        predictions = np.argmax(predictions, axis=2)
+
+        # Remove ignored index (special tokens)
+        true_predictions = [
+            p
+            for prediction, label in zip(predictions, labels)
+            for (p, l) in zip(prediction, label)
+            if l != -100
+        ]
+        true_labels = [
+            l
+            for prediction, label in zip(predictions, labels)
+            for (p, l) in zip(prediction, label)
+            if l != -100
+        ]
+
+        return {
+            "accuracy": np.mean(
+                list(map(lambda x: x[0] == x[1], zip(true_labels, true_predictions)))
+            )
+        }
+
+    return compute_metrics
