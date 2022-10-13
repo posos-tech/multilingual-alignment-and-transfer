@@ -3,7 +3,7 @@
 This repository holds the code for the following papers:
 
 - [Multilingual Transformer Encoders: a Word-Level Task-Agnostic Evaluation](https://arxiv.org/abs/2207.09076v1), Félix Gaschi, François Plesse, Parisa Rastin, Yannick Toussaint. IJCNN 2022
-- Improving Cross-lingual Transfer With Realignment as an Auxiliary Task (Work-in-progress and tentative title)
+- Improving Cross-lingual Transfer With Realignment as an Auxiliary Task (Work-in-progress and tentative title) [overleaf link](https://www.overleaf.com/read/qrbqbbrmbrsx)
 
 ## Architecture of the repository
 
