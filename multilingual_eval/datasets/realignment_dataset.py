@@ -1,14 +1,24 @@
 # Chinese load_dataset("un_multi", "en-zh", cache_dir=cache_dir)
 # Others news_commentary
 from collections import defaultdict
+import itertools
+import logging
 from transformers import DataCollatorWithPadding
 from dataclasses import dataclass
 from typing import Dict, Set, Tuple
 from time import perf_counter
 import torch
+from datasets import concatenate_datasets
+from datasets.iterable_dataset import IterableDataset
 from torch.utils.data import DataLoader
 
 from multilingual_eval.data import get_dicos
+from multilingual_eval.datasets.data_utils import (
+    TorchCompatibleIterableDataset,
+    convert_dataset_to_iterable_dataset,
+    get_signature_columns_if_needed,
+    repeat_iterable_dataset,
+)
 from multilingual_eval.utils import get_tokenizer_type, subwordlist_to_wordlist
 
 
@@ -254,6 +264,21 @@ class DatasetMapperForRealignment:
         }
 
 
+class DatasetMapperForInjectingRealignmentData:
+    def __init__(self, realignment_dataset):
+        self.realignment_dataset = realignment_dataset
+        self.realignment_iterator = iter(self.realignment_dataset)
+
+    def __call__(self, example):
+        try:
+            realignment_example = next(self.realignment_iterator)
+        except StopIteration:
+            self.realignment_iterator = iter(self.realignment_dataset)
+            realignment_example = next(self.realignment_iterator)
+
+        return {**example, **realignment_example}
+
+
 class RealignmentCollator:
     def __init__(self, tokenizer):
         self.usual_collator = DataCollatorWithPadding(tokenizer)
@@ -276,7 +301,9 @@ class RealignmentCollator:
 
         alignment_left_ids = torch.zeros((len(examples), max_nb), dtype=torch.long)
         alignment_right_ids = torch.zeros((len(examples), max_nb), dtype=torch.long)
-        alignment_left_positions = torch.zeros((len(examples), max_left_length, 2), dtype=torch.long)
+        alignment_left_positions = torch.zeros(
+            (len(examples), max_left_length, 2), dtype=torch.long
+        )
         alignment_right_positions = torch.zeros(
             (len(examples), max_right_length, 2), dtype=torch.long
         )
@@ -310,8 +337,67 @@ class RealignmentCollator:
         }
 
 
+class RealignmentAndOtherCollator(RealignmentCollator):
+    def __init__(self, tokenizer, other_collator):
+        super().__init__(tokenizer)
+        self.other_collator = other_collator
+        self.count_alignment = 0
+        self.count_task = 0
+        self.history = []
+
+    def __call__(self, examples):
+        alignment_examples = list(filter(lambda x: x.get("left_input_ids") is not None, examples))
+        task_examples = list(filter(lambda x: x.get("input_ids") is not None, examples))
+
+        self.count_alignment += len(alignment_examples)
+        self.count_task += len(task_examples)
+
+        if len(alignment_examples) > 0 and len(task_examples) > 0:
+            state = "mixed"
+        elif len(alignment_examples) > 0:
+            state = "alignment"
+        elif len(task_examples) > 0:
+            state = "task"
+        else:
+            state = "empty"
+
+        if len(self.history) == 0 or self.history[-1][0] != state:
+            self.history.append((state, 1))
+        else:
+            self.history[-1] = (state, self.history[-1][1] + 1)
+
+        if len(alignment_examples) > 0:
+            try:
+                alignment_batch = super(RealignmentAndOtherCollator, self).__call__(
+                    alignment_examples
+                )
+            except Exception as e:
+                raise e
+        else:
+            alignment_batch = {}
+
+        if len(task_examples) > 0:
+            other_inputs = [
+                {
+                    k: v
+                    for k, v in ex.items()
+                    if not k.startswith("left_")
+                    and not k.startswith("right_")
+                    and not k.startswith("alignment_")
+                }
+                for ex in task_examples
+            ]
+            batch_others = self.other_collator(other_inputs)
+        else:
+            batch_others = {}
+        return {**alignment_batch, **batch_others}
+
+
 def get_realignment_dataset(tokenizer, translation_dataset, left_lang, right_lang, dico_path):
     mapper = DatasetMapperForRealignment(tokenizer, dico_path, left_lang, right_lang)
+
+    if not isinstance(translation_dataset, IterableDataset):
+        translation_dataset = convert_dataset_to_iterable_dataset(translation_dataset)
 
     translation_dataset = (
         translation_dataset.map(mapper, remove_columns=[left_lang, right_lang])
@@ -320,6 +406,61 @@ def get_realignment_dataset(tokenizer, translation_dataset, left_lang, right_lan
         .with_format("torch")
     )
     return translation_dataset
+
+
+def mix_realignment_with_dataset(
+    model,
+    realignment_dataset,
+    task_dataset,
+    n_epochs=1,
+    epoch_len=None,
+    label_names=None,
+    strategy="during",
+):
+    if not isinstance(task_dataset, IterableDataset):
+        epoch_len = len(task_dataset)
+        iterable_task_dataset = convert_dataset_to_iterable_dataset(task_dataset, repeat=n_epochs)
+    else:
+        if epoch_len is not None:
+            task_dataset = task_dataset.take(epoch_len)
+        if n_epochs > 1:
+            task_dataset = repeat_iterable_dataset(task_dataset, n_epochs)
+        iterable_task_dataset = task_dataset
+
+    features = set(next(iter(iterable_task_dataset)).keys())
+    expected = set(get_signature_columns_if_needed(model, label_names))
+
+    to_remove = list(features - expected)
+    if len(to_remove) > 0:
+        logging.warning(
+            f"Will remove columns {to_remove} from training dataset, as they are not used as input of the model"
+        )
+        iterable_task_dataset = iterable_task_dataset.remove_columns(to_remove)
+
+    if strategy == "during":
+        inject_mapper = DatasetMapperForInjectingRealignmentData(realignment_dataset)
+        training_dataset = iterable_task_dataset.map(inject_mapper)
+    # TODO add option with interleave (in distinct batches?...)
+    elif strategy == "before":
+        training_dataset = IterableDataset(
+            enumerate(
+                itertools.chain(
+                    realignment_dataset.take(n_epochs * epoch_len), iterable_task_dataset
+                )
+            )
+        )
+    elif strategy == "after":
+        training_dataset = IterableDataset(
+            enumerate(
+                itertools.chain(
+                    iterable_task_dataset, realignment_dataset.take(n_epochs * epoch_len)
+                )
+            )
+        )
+    else:
+        raise NotImplementedError(f"Realignment strategy not implemented: {strategy}")
+
+    return TorchCompatibleIterableDataset(training_dataset)
 
 
 def get_realignment_dataloader(

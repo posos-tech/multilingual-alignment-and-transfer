@@ -331,9 +331,52 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
         alignment_right_length=None,
     ):
         if input_ids is not None and left_input_ids is not None:
-            raise Exception(
-                f"{self.__name__} was given a batch containing simultaneously normal and realignment inputs. A batch should contain either one of them but not both."
+            res = super(BertForTokenClassificationWithRealignment, self).forward(
+                input_ids,
+                attention_mask,
+                token_type_ids,
+                position_ids,
+                head_mask,
+                inputs_embeds,
+                labels,
+                output_attentions,
+                output_hidden_states,
+                return_dict=return_dict,
             )
+            if labels is not None:
+                realignment_loss = compute_realignment_loss(
+                    self.bert,
+                    self.realignment_transformation,
+                    self.realignment_layers,
+                    self.strong_alignment,
+                    self.realignment_temperature,
+                    self.realignment_coef,
+                    self.alignment_hidden_size,
+                    left_input_ids,
+                    left_attention_mask,
+                    left_token_type_ids,
+                    left_position_ids,
+                    left_head_mask,
+                    left_inputs_embeds,
+                    right_input_ids,
+                    right_attention_mask,
+                    right_token_type_ids,
+                    right_position_ids,
+                    right_head_mask,
+                    right_inputs_embeds,
+                    alignment_left_ids,
+                    alignment_left_positions,
+                    alignment_right_ids,
+                    alignment_right_positions,
+                    alignment_nb,
+                    alignment_left_length,
+                    alignment_right_length,
+                )
+                if return_dict:
+                    res.loss += realignment_loss
+                    return res
+                else:
+                    return (res[0] + realignment_loss, *res[1:])
         if input_ids is not None:
             return super(BertForTokenClassificationWithRealignment, self).forward(
                 input_ids,
@@ -345,7 +388,7 @@ class BertForTokenClassificationWithRealignment(BertForTokenClassification):
                 labels,
                 output_attentions,
                 output_hidden_states,
-                return_dict=True,
+                return_dict=return_dict,
             )
         else:
             realignment_loss = compute_realignment_loss(
