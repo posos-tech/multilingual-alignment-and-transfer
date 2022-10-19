@@ -15,6 +15,34 @@ This repository holds the code for the following papers:
 
 ## How to use the repository
 
+### Focus on experiments from the current branch
+
+Work in progress for the EACL submission can be found in the following scripts:
+
+- scripts/21_realignment_for_pos.py
+- scripts/22_realignment_for_ner.py
+- scripts/23_realignment_for_xnli.py
+
+Requirements are written in `reproduce_results/eacl_2023_requirements.txt` and can be installed in a virtual environment
+
+For those to work, you need to download bilingual dictionaries for the following languages: `["ar", "es", "fr", "ru", "zh"]`
+
+```{bash}
+bash $DICO_PATH "ar es fr ru zh"
+```
+
+Then you can use any of the above-mentionned script by doing the following (example with the 21st):
+
+```{bash}
+python scripts/21_realignment_for_pos.py $DICO_PATH
+```
+
+Additional parameters:
+
+- to juste test the script without waiting too much, you can add `--debug`
+- to store the datasets which will be loaded from Huggingface in a specific directory, you can add `--data_dir <YOUR_SPECIFIC_DIRECTORY>`
+- those scripts are grid search using wandb, if you want to create a new agent for an existing grid search instead of starting a new one, you just need the id of the sweep and add `--sweep_id <ID_OF_THE_SWEEP>`
+
 ### To reproduce a single experiment
 
 install the relevant dependencies (ideally in a virtual environment):
