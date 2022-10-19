@@ -1,7 +1,7 @@
 from typing import List, Union
 import pycountry
 
-from datasets import load_dataset, interleave_datasets
+from datasets import load_dataset, interleave_datasets, get_dataset_config_names
 from multilingual_eval.datasets.code_switching import (
     get_dataset_with_code_swicthing,
 )
@@ -96,3 +96,14 @@ def get_xtreme_udpos(
     if return_length:
         return datasets, lengths
     return datasets
+
+
+def get_xtreme_udpos_langs():
+    return list(
+        map(
+            lambda x: "el"
+            if x.split(".")[1] == "Greek"
+            else pycountry.languages.get(name=x.split(".")[1]).alpha_2,
+            filter(lambda x: x.startswith("udpos."), get_dataset_config_names("xtreme")),
+        )
+    )

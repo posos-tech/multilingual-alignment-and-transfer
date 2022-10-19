@@ -21,7 +21,7 @@ from multilingual_eval.datasets.data_utils import (
     infinite_iterable_dataset,
     repeat_iterable_dataset,
 )
-from multilingual_eval.datasets.translation_dataset import get_news_commentary
+from multilingual_eval.datasets.translation_dataset import get_news_commentary, get_opus100
 from multilingual_eval.datasets.xtreme_udpos import get_xtreme_udpos
 from multilingual_eval.utils import get_tokenizer_type, subwordlist_to_wordlist
 
@@ -76,6 +76,7 @@ class DatasetMapperForRealignment:
         dico_path=None,
         dico=None,
         dictionary_fraction=1.0,
+        max_length=None,
     ):
         self.tokenizer = tokenizer
         self._tokenizer_type = get_tokenizer_type(tokenizer)
@@ -104,6 +105,8 @@ class DatasetMapperForRealignment:
 
         self.perfs = defaultdict(lambda: [0.0, 0])
 
+        self.max_length = max_length
+
     @timing
     def tokenize_sentences(self, left_sent, right_sent):
 
@@ -114,6 +117,10 @@ class DatasetMapperForRealignment:
 
         left_tokens = self.tokenizer.tokenize(left_sent)
         right_tokens = self.tokenizer.tokenize(right_sent)
+
+        if self.max_length is not None:
+            left_tokens = left_tokens[:self.max_length]
+            right_tokens = right_tokens[:self.max_length]
 
         return left_tokens, right_tokens
 
@@ -294,8 +301,18 @@ class DatasetMapperForRealignment:
         )
 
         return {
-            **{f"left_{k}": v for k, v in self.tokenizer(left_sent, truncation=True).items()},
-            **{f"right_{k}": v for k, v in self.tokenizer(right_sent, truncation=True).items()},
+            **{
+                f"left_{k}": v
+                for k, v in self.tokenizer(
+                    left_sent, truncation=True, max_length=self.max_length
+                ).items()
+            },
+            **{
+                f"right_{k}": v
+                for k, v in self.tokenizer(
+                    right_sent, truncation=True, max_length=self.max_length
+                ).items()
+            },
             "alignment_left_ids": alignment_left_ids,
             "alignment_right_ids": alignment_right_ids,
             "alignment_left_positions": alignment_left_positions,
@@ -322,8 +339,8 @@ class DatasetMapperForInjectingRealignmentData:
 
 
 class RealignmentCollator:
-    def __init__(self, tokenizer):
-        self.usual_collator = DataCollatorWithPadding(tokenizer)
+    def __init__(self, tokenizer, **kwargs):
+        self.usual_collator = DataCollatorWithPadding(tokenizer, **kwargs)
 
     def __call__(self, examples):
         left_inputs = [
@@ -387,8 +404,8 @@ def keep_only_first_subword(example):
 
 
 class RealignmentAndOtherCollator(RealignmentCollator):
-    def __init__(self, tokenizer, other_collator):
-        super().__init__(tokenizer)
+    def __init__(self, tokenizer, other_collator, **kwargs):
+        super().__init__(tokenizer, **kwargs)
         self.other_collator = other_collator
         self.count_alignment = 0
         self.count_task = 0
@@ -455,6 +472,8 @@ def get_realignment_dataset(
     first_subword_only=False,
     left_lang_id=0,
     right_lang_id=0,
+    seed=None,
+    max_length=None,
 ):
     mapper = mapper_for_realignment or DatasetMapperForRealignment(
         tokenizer,
@@ -463,6 +482,7 @@ def get_realignment_dataset(
         dico_path=dico_path,
         dico=dico,
         dictionary_fraction=dico_fraction,
+        max_length=max_length,
     )
 
     if not isinstance(translation_dataset, IterableDataset):
@@ -479,7 +499,7 @@ def get_realignment_dataset(
 
     translation_dataset = (
         translation_dataset.filter(lambda x: len(x["alignment_left_ids"]) > 0)
-        .shuffle()
+        .shuffle(seed=seed)
         .with_format("torch")
     )
     if return_dico:
@@ -494,7 +514,17 @@ def get_multilingual_news_commentary_realignment_dataset(
     dico_path=None,
     first_subword_only=True,
     lang_to_id=None,
+    dataset_name="news_commentary",
+    seed=None,
+    cache_dir=None,
+    max_length=None,
 ):
+    if dataset_name == "news_commentary":
+        dataset_getter = get_news_commentary
+    elif dataset_name == "opus100":
+        dataset_getter = get_opus100
+    else:
+        raise NotImplementedError(f"dataset_name `{dataset_name}` is not expected.")
     # by convention, we fix the pivot language as first left_lang (usually English)
     pivot = lang_pairs[0][0]
     lang_to_id = lang_to_id or {
@@ -515,13 +545,15 @@ def get_multilingual_news_commentary_realignment_dataset(
     datasets = [
         get_realignment_dataset(
             tokenizer,
-            get_news_commentary(left_lang, right_lang),
+            dataset_getter(left_lang, right_lang, cache_dir=cache_dir),
             left_lang,
             right_lang,
             dico_path=dico_path,
             first_subword_only=first_subword_only,
             left_lang_id=lang_to_id[left_lang],
             right_lang_id=lang_to_id[right_lang],
+            seed=seed,
+            max_length=max_length,
         )
         for i, (left_lang, right_lang) in enumerate(lang_pairs)
     ]
@@ -539,6 +571,7 @@ def mix_realignment_with_dataset(
     epoch_len=None,
     label_names=None,
     strategy="during",
+    seed=None,
 ):
     if not isinstance(task_dataset, IterableDataset):
         epoch_len = len(task_dataset)

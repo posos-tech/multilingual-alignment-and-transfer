@@ -3,11 +3,20 @@ import torch
 import itertools
 import inspect
 
+from multilingual_eval.seeds import seeds
+
 
 def convert_dataset_to_iterable_dataset(dataset, repeat=1):
     return IterableDataset(
         enumerate(
-            itertools.chain(*[dataset if i == 0 else dataset.shuffle() for i in range(repeat)])
+            itertools.chain(
+                *[
+                    dataset
+                    if i == 0
+                    else dataset.shuffle(seed=seeds[i % len(seeds)] + i // len(seeds))
+                    for i in range(repeat)
+                ]
+            )
         )
     )
 
