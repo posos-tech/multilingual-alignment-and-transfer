@@ -3,3 +3,4 @@ parameters.sh
 wandb/
 local_runs/
 venvs/
+OAR.**
