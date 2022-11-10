@@ -6,7 +6,7 @@ from datasets import load_dataset, load_metric
 
 
 from multilingual_eval.datasets.token_classification import get_token_classification_getter
-
+from multilingual_eval.datasets.label_alignment import StanfordSegmenterWithLabelAlignmentMapper
 
 get_wikiann_ner = get_token_classification_getter(
     lambda lang, cache_dir=None: load_dataset(
@@ -15,6 +15,9 @@ get_wikiann_ner = get_token_classification_getter(
         cache_dir=cache_dir,
     ),
     "ner_tags",
+    language_specific_preprocessing=StanfordSegmenterWithLabelAlignmentMapper.get_language_specific_dataset_transformer(
+        label_name="ner_tags", relabeling_strategy="resegment"
+    ),
 )
 
 

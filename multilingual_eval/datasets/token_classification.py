@@ -11,7 +11,11 @@ from multilingual_eval.datasets.data_utils import convert_dataset_to_iterable_da
 from multilingual_eval.datasets.label_alignment import LabelAlignmentMapper
 
 
-def get_token_classification_getter(subset_loader, label_name: str):
+def get_token_classification_getter(
+    subset_loader,
+    label_name: str,
+    language_specific_preprocessing=None,
+):
     """
     Return a function that would load a token classification dataset and perform the
     necessary transformation
@@ -20,6 +24,7 @@ def get_token_classification_getter(subset_loader, label_name: str):
     - subset_loader: a function that takes two arguments 'lang' (positional) and 'cache_dir' (keyword) that will
         load the dataset for a given language (lang) using the provided cache directory (cache_dir) which is None by default
     - label_name: the name of the properties containing the labels as integers
+    - language_specific_preprocessing: optional function that takes the dataset and the lang and returns a dataset
     """
 
     def get_token_classification_dataset(
@@ -79,6 +84,9 @@ def get_token_classification_getter(subset_loader, label_name: str):
                 lambda x: x[0].shuffle().filter(lambda _, i: i < x[1], with_indices=True),
                 zip(datasets, limits),
             )
+
+        if language_specific_preprocessing is not None:
+            datasets = map(lambda x: language_specific_preprocessing(*x), zip(lang, datasets))
 
         if n_datasets == 1:
             datasets = [next(iter(datasets))]
