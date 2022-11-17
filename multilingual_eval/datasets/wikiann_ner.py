@@ -6,7 +6,65 @@ from datasets import load_dataset, load_metric
 
 
 from multilingual_eval.datasets.token_classification import get_token_classification_getter
-from multilingual_eval.datasets.label_alignment import StanfordSegmenterWithLabelAlignmentMapper
+from multilingual_eval.datasets.lang_preprocessing import StanfordSegmenterWithLabelAlignmentMapper
+
+
+class ReplaceByFileEntryMapper:
+    """
+    Callable for Dataset.map that replaces the HF-hosted wikiann entries with
+    entries from a file. Useful for debugging
+    """
+
+    _str_labels = dict(zip(["O", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC"], range(7)))
+
+    def __init__(self, fname: str, label_name="ner_tags"):
+        self.fname = fname
+        self.iterator = None
+        self.label_name = label_name
+
+    def loop_over_file(self):
+        with open(self.fname, "r") as f:
+            tokens = []
+            labels = []
+            for line in f:
+                if len(line.strip()) == 0:
+                    yield {"tokens": tokens, self.label_name: labels}
+                    tokens = []
+                    labels = []
+                    continue
+                word, label = line.strip().split("\t")
+                _, word = word.split(":", 1)
+                tokens.append(word)
+                labels.append(self._str_labels[label])
+        if tokens:
+            yield {"tokens": tokens, self.label_name: labels}
+
+    def __enter__(self):
+        self.iterator = self.loop_over_file()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.iterator = None
+
+    def __call__(self, examples):
+        new_examples = [next(self.iterator) for _ in range(len(examples["tokens"]))]
+
+        return {
+            "tokens": [elt["tokens"] for elt in new_examples],
+            self.label_name: [elt[self.label_name] for elt in new_examples],
+        }
+
+    @classmethod
+    def get_language_specific_dataset_transformer(
+        cls, language: str, fname: str, label_name="ner_tags"
+    ):
+        def language_specific_transformer(lang, dataset):
+            if lang == language:
+                with cls(fname, label_name=label_name) as mapper:
+                    return dataset.map(mapper, batched=True)
+            return dataset
+
+        return language_specific_transformer
+
 
 get_wikiann_ner = get_token_classification_getter(
     lambda lang, cache_dir=None: load_dataset(
@@ -15,9 +73,11 @@ get_wikiann_ner = get_token_classification_getter(
         cache_dir=cache_dir,
     ),
     "ner_tags",
-    language_specific_preprocessing=StanfordSegmenterWithLabelAlignmentMapper.get_language_specific_dataset_transformer(
-        label_name="ner_tags", relabeling_strategy="resegment"
-    ),
+    language_specific_preprocessing=[
+        StanfordSegmenterWithLabelAlignmentMapper.get_language_specific_dataset_transformer(
+            label_name="ner_tags"
+        )
+    ],
 )
 
 

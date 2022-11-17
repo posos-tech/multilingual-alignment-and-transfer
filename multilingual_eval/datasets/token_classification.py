@@ -26,6 +26,10 @@ def get_token_classification_getter(
     - label_name: the name of the properties containing the labels as integers
     - language_specific_preprocessing: optional function that takes the dataset and the lang and returns a dataset
     """
+    if language_specific_preprocessing is not None and not isinstance(
+        language_specific_preprocessing, list
+    ):
+        language_specific_preprocessing = [language_specific_preprocessing]
 
     def get_token_classification_dataset(
         lang: Union[List[str], str],
@@ -86,7 +90,9 @@ def get_token_classification_getter(
             )
 
         if language_specific_preprocessing is not None:
-            datasets = map(lambda x: language_specific_preprocessing(*x), zip(lang, datasets))
+
+            for process_fn in language_specific_preprocessing:
+                datasets = map(lambda x: process_fn(*x), zip(lang, datasets))
 
         if n_datasets == 1:
             datasets = [next(iter(datasets))]
