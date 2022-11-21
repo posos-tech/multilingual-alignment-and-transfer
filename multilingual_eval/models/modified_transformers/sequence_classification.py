@@ -9,7 +9,7 @@ from multilingual_eval.models.modified_transformers.bert_model import (
 )
 
 
-def sequence_classifier_with_optional_mapping_factory(BaseClass):
+def sequence_classifier_with_optional_mapping_factory(BaseClass, classifier_getter=None):
     """
     Factory function for creating a custom class for a token classification model
     that builds on top of an existing one (BaseClass) by adding an optional orthogonal
@@ -27,6 +27,7 @@ def sequence_classifier_with_optional_mapping_factory(BaseClass):
             super().__init__(config)
 
             self.with_mapping = with_mapping
+            self.classifier_getter = classifier_getter
 
             encoder_class = getattr(self, BaseClass.base_model_prefix).__class__
 
@@ -83,10 +84,12 @@ def sequence_classifier_with_optional_mapping_factory(BaseClass):
                 train_only_mapping=train_only_mapping,
             )
 
-            pooled_output = outputs[1]
-
-            pooled_output = self.dropout(pooled_output)
-            logits = self.classifier(pooled_output)
+            if self.classifier_getter is None:
+                pooled_output = outputs[1]
+                pooled_output = self.dropout(pooled_output)
+                logits = self.classifier(pooled_output)
+            else:
+                logits = self.classifier_getter(self)(outputs)
 
             loss = None
             if labels is not None:
@@ -126,9 +129,19 @@ def sequence_classifier_with_optional_mapping_factory(BaseClass):
     return CustomModelForSequenceClassification
 
 
+def roberta_sequence_classifier_getter(model: RobertaForSequenceClassification):
+    def classifier(outputs):
+        sequence_output = outputs[0]
+        logits = model.classifier(sequence_output)
+
+        return logits
+
+    return classifier
+
+
 CustomBertForSequenceClassification = sequence_classifier_with_optional_mapping_factory(
-    BertForSequenceClassification,
+    BertForSequenceClassification
 )
 CustomRobertaForSequenceClassification = sequence_classifier_with_optional_mapping_factory(
-    RobertaForSequenceClassification,
+    RobertaForSequenceClassification, classifier_getter=roberta_sequence_classifier_getter
 )
