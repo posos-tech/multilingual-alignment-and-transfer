@@ -68,7 +68,7 @@ def generate_pairs(
 
     selected_source = selected_source or set()
     selected_target = selected_target or set()
-    for sent_id, pair in enumerate(tqdm(sentence_pair_generator)):
+    for sent_id, pair in enumerate(sentence_pair_generator):
         if isinstance(pair, dict):
             left_sent = pair[left_lang]
             right_sent = pair[right_lang]

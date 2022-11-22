@@ -6,7 +6,9 @@ from transformers.optimization import get_scheduler
 from torch.optim import Adam
 import numpy as np
 import random
+import math
 
+from multilingual_eval.training.states import TrainingState
 from multilingual_eval.training.epoch_loop import epoch_loop
 from multilingual_eval.datasets.realignment_dataset import (
     RealignmentAndOtherCollator,
@@ -27,6 +29,7 @@ def realignment_training_loop(
     same_language_evaluation_dataset=None,
     evaluation_prefixes=None,
     task_batch_size=4,
+    nb_realignment_steps_before=None,
     realignment_batch_size=2,
     n_epochs=10,
     accumulation_steps=1,
@@ -54,6 +57,8 @@ def realignment_training_loop(
     - same_language_evaluation_dataset: optional evaluation dataset on same language as training
     - evaluation_prefixes: optional list of prefixes for evaluation datasets metrics
     - task_batch_size: batch size for the training task (not considering accumulation steps)
+    - nb_realignment_steps_before: if set, number of realignment batches to see before fine-tuning, otherwise it is n_epochs times the number of fine-tuning batch.
+        Only taken into account if strategy is "before", "before+during" or "after"
     - realignment_batch_size: batch size of the realignment step
     - n_epochs: number of epochs for the fine-tuning task
     - accumulation_steps: number of accumulation steps for the fine-tuning task
@@ -72,9 +77,11 @@ def realignment_training_loop(
     if log_in_wandb:
         import wandb
 
+    # Put model to GPU if available
     if model.device.type != "cuda" and torch.cuda.device_count() > 0:
         model = model.to(0)
 
+    # Fix random seed for Pytorch and numpy
     if seed is not None:
         g = torch.Generator()
         g.manual_seed(seed)
@@ -87,6 +94,8 @@ def realignment_training_loop(
     else:
         g = None
         seed_worker = None
+
+    # Create dataloader for the fine-tuning task
     task_dataloader = DataLoader(
         task_dataset,
         shuffle=True,
@@ -95,6 +104,8 @@ def realignment_training_loop(
         worker_init_fn=seed_worker,
         generator=g,
     )
+
+    # If needed, create dataloader for re-alignment task
     if strategy != "baseline":
         realignment_dataloader = DataLoader(
             realignment_dataset,
@@ -108,6 +119,18 @@ def realignment_training_loop(
     else:
         realignment_dataloader = None
 
+    training_state = TrainingState.compute_expected_samples(
+        strategy,
+        task_dataset,
+        task_dataloader,
+        n_epochs,
+        task_batch_size,
+        realignment_batch_size,
+        accumulation_steps=accumulation_steps,
+        nb_realignment_steps_before=nb_realignment_steps_before,
+    )
+
+    # If available, create dataloader for evaluation on training language
     if same_language_evaluation_dataset is not None:
         same_language_evaluation_dataloader = DataLoader(
             same_language_evaluation_dataset,
@@ -116,24 +139,31 @@ def realignment_training_loop(
             collate_fn=data_collator,
         )
 
+    # If strategy is "before" or "before+during", perform realignment before fine-tuning
     if strategy in ["before", "before+during"]:
 
         before_optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
 
-        for i in range(n_epochs):
-            epoch_loop(
-                model,
-                before_optimizer,
-                task_dataloader=None,
-                realignment_dataloader=realignment_dataloader,
-                task_accumulation_steps=accumulation_steps,
-                logging_steps=logging_steps,
-                log_in_wandb=log_in_wandb,
-                nb_iter=len(task_dataloader),
-                realignment_step_callbacks=realignment_step_callbacks,
-            )
-            for callback in epoch_callbacks:
-                callback(model)
+        training_state = epoch_loop(
+            model,
+            before_optimizer,
+            task_dataloader=None,
+            realignment_dataloader=realignment_dataloader,
+            task_accumulation_steps=accumulation_steps,
+            logging_steps=logging_steps,
+            log_in_wandb=log_in_wandb,
+            nb_iter=(
+                len(task_dataloader) * n_epochs
+                if nb_realignment_steps_before is None
+                else nb_realignment_steps_before * accumulation_steps
+            ),
+            realignment_step_callbacks=realignment_step_callbacks,
+            training_state=training_state,
+        )
+
+        res = training_state.log_state()
+        if log_in_wandb:
+            wandb.log(res)
 
     optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
     scheduler = get_scheduler(
@@ -143,9 +173,12 @@ def realignment_training_loop(
         num_training_steps=len(task_dataloader) * 5,
     )
 
+    for callback in epoch_callbacks:
+        callback(model)
+
     for i in range(n_epochs):
 
-        epoch_loop(
+        training_state = epoch_loop(
             model,
             optimizer,
             scheduler=scheduler,
@@ -160,9 +193,14 @@ def realignment_training_loop(
             if realignment_coef_scheduler is None
             else realignment_coef_scheduler(i),
             realignment_step_callbacks=realignment_step_callbacks,
+            training_state=training_state,
         )
         for callback in epoch_callbacks:
             callback(model)
+
+        res = training_state.log_state()
+        if log_in_wandb:
+            wandb.log(res)
 
         if evaluation_datasets is not None:
             res = evaluate_several_token_classification(
@@ -189,45 +227,27 @@ def realignment_training_loop(
     if strategy == "after":
         after_optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
 
-        for i in range(n_epochs):
-            epoch_loop(
-                model,
-                after_optimizer,
-                task_dataloader=None,
-                realignment_dataloader=realignment_dataloader,
-                task_accumulation_steps=accumulation_steps,
-                logging_steps=logging_steps,
-                log_in_wandb=log_in_wandb,
-                nb_iter=len(task_dataloader),
-                realignment_step_callbacks=realignment_step_callbacks,
-            )
-            for callback in epoch_callbacks:
-                callback(model)
-
-            if evaluation_datasets is not None:
-                res = evaluate_several_token_classification(
-                    tokenizer,
-                    model,
-                    evaluation_datasets,
-                    batch_size=task_batch_size,
-                    prefixes=evaluation_prefixes,
-                    overall_prefix="eval",
-                    metric_fn=metric_fn,
-                    collator=data_collator,
-                )
-                logging.info(res)
-                if log_in_wandb:
-                    wandb.log(res)
-            if same_language_evaluation_dataloader is not None:
-                res = evaluate_token_classification(
-                    model,
-                    same_language_evaluation_dataloader,
-                    prefix="eval_same",
-                    metric_fn=metric_fn,
-                )
-                logging.info(res)
-                if log_in_wandb:
-                    wandb.log(res)
+        training_state = epoch_loop(
+            model,
+            after_optimizer,
+            task_dataloader=None,
+            realignment_dataloader=realignment_dataloader,
+            task_accumulation_steps=accumulation_steps,
+            logging_steps=logging_steps,
+            log_in_wandb=log_in_wandb,
+            nb_iter=(
+                len(task_dataloader) * n_epochs
+                if nb_realignment_steps_before is None
+                else nb_realignment_steps_before * accumulation_steps
+            ),
+            realignment_step_callbacks=realignment_step_callbacks,
+            training_state=training_state,
+        )
+        res = training_state.log_state()
+        if log_in_wandb:
+            wandb.log(res)
+        for callback in epoch_callbacks:
+            callback(model)
 
     if evaluation_datasets is not None:
         res = evaluate_several_token_classification(

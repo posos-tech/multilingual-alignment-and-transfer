@@ -10,11 +10,13 @@ def get_next_or_restart(dataloader: DataLoader, iterator, name=None):
     name = name or str(dataloader)
     try:
         batch = next(iterator)
+        restarted = False
     except StopIteration:
         logging.warning(f"Reached end of Dataloader {name}. Starting over")
         iterator = iter(dataloader)
         batch = next(iterator)
-    return iterator, batch
+        restarted = True
+    return iterator, batch, restarted
 
 
 def bring_batch_to_model(batch, model):

@@ -2,7 +2,9 @@ import itertools
 import torch
 import logging
 import math
+from typing import Optional
 from multilingual_eval.training.utils import bring_batch_to_model, get_next_or_restart
+from multilingual_eval.training.states import TrainingState
 
 
 def epoch_loop(
@@ -17,6 +19,7 @@ def epoch_loop(
     nb_iter=None,
     realignment_coef=1.0,
     realignment_step_callbacks=None,
+    training_state: Optional[TrainingState] = None,
 ):
     """
     Function to perform an epoch of training, with specific task samples and/or realignment task samples
@@ -73,9 +76,23 @@ def epoch_loop(
             realignment_loss = 0
 
             if realignment_dataloader is not None:
-                realignment_iterator, realignment_batch = get_next_or_restart(
+                realignment_iterator, realignment_batch, restarted = get_next_or_restart(
                     realignment_dataloader, realignment_iterator
                 )
+
+                if training_state is not None:
+                    training_state.has_restarted = training_state.has_restarted or restarted
+
+                    if not training_state.has_restarted:
+                        training_state.nb_realignment_samples_seen_before_restart += (
+                            realignment_batch["left_input_ids"].shape[0]
+                        )
+
+                    training_state.nb_realignment_samples_seen += realignment_batch[
+                        "left_input_ids"
+                    ].shape[0]
+                    training_state.nb_realignment_steps_seen += 1
+
                 realignment_batch = bring_batch_to_model(realignment_batch, model)
 
                 realignment_loss = (
@@ -83,6 +100,7 @@ def epoch_loop(
                 )
 
         if batch is not None:
+
             if torch.cuda.device_count() > 1:
                 outputs = torch.nn.parallel.data_parallel(model, None, module_kwargs=batch)
                 tmp_loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
@@ -94,6 +112,9 @@ def epoch_loop(
             accumulated_steps += 1
 
         if i % task_accumulation_steps == task_accumulation_steps - 1 or i == nb_iter - 1:
+            if training_state is not None and batch is not None:
+                training_state.nb_finetuning_steps_seen += 1
+
             task_loss /= max(1, accumulated_steps)
 
             # Note that the coefficient is already in the model definition
@@ -110,15 +131,23 @@ def epoch_loop(
                     callback(model)
 
             if logging_steps is not None and (i // task_accumulation_steps) % logging_steps == 0:
-                batch_seen = math.ceil(i / task_accumulation_steps)
 
-                logging.info(f"batch: {batch_seen}/{nb_batch} loss : {total_loss}")
+                if training_state is not None:
+                    res = training_state.log_state()
+                else:
+                    batch_seen = math.ceil(i / task_accumulation_steps)
+
+                    logging.info(f"batch: {i}/{nb_batch} loss : {total_loss}")
+                    res = None
+
                 if log_in_wandb:
                     wandb.log(
                         {
-                            "train_step": batch_seen,
+                            **(res if res is not None else {"train_step": batch_seen}),
                             "train_loss": total_loss,
                             "realignment_loss": realignment_loss,
                             "task_loss": task_loss,
                         }
                     )
+
+    return training_state

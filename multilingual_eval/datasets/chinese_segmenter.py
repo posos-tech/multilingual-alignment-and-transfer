@@ -1,8 +1,18 @@
 import requests
 from time import sleep
 import os
-from subprocess import Popen
+from subprocess import Popen, PIPE, DEVNULL
 from nltk.parse.corenlp import CoreNLPParser
+import threading
+import sys
+
+
+def filtered_stderr_logger(p):
+    for line in p.stderr:
+        text = line.decode()
+        if len(text.split()) > 2 and text.split()[1] == "INFO":
+            continue
+        print(text, file=sys.stderr)
 
 
 class StanfordSegmenter:
@@ -39,7 +49,13 @@ class StanfordSegmenter:
                 raise Exception(
                     f"tools/stanford-corenlp-full-2016-10-31 does not exist, please install the Stanford Segmenter (download_resources/stanford_tokenizer.sh)"
                 )
-            self.server_process = Popen(["/bin/bash", "subscripts/launch_corenlp_server.sh"])
+            self.server_process = Popen(
+                ["/bin/bash", "subscripts/launch_corenlp_server.sh"], stderr=PIPE, stdout=DEVNULL
+            )
+            self.logging_thread = threading.Thread(
+                target=filtered_stderr_logger, args=(self.server_process,)
+            )
+            self.logging_thread.start()
             self.segmenter = CoreNLPParser("http://localhost:9001", encoding="utf8")
             sleep(2)
             self.start_and_wait_for_availability()
@@ -58,4 +74,6 @@ class StanfordSegmenter:
     def cleanup(self):
         if self.server_process is not None:
             self.server_process.terminate()
+        if self.logging_thread is not None:
+            self.logging_thread.join()
         self.segmenter = None
