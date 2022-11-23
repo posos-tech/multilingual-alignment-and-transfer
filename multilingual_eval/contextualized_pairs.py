@@ -320,7 +320,7 @@ def compute_pair_representations(
     else:
         right_key = None
 
-    for i in tqdm(range(0, len(pairs), batch_size)):
+    for i in range(0, len(pairs), batch_size):
         j = min(i + batch_size, len(pairs))
 
         if mask_word:
