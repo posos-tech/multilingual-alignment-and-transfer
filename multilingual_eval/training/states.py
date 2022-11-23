@@ -22,6 +22,14 @@ class TrainingState:
     nb_finetuning_steps_seen: int = 0
     has_restarted: bool = False
 
+    def update_from_other_finetuning(self, other: "TrainingState"):
+        self.nb_realignment_samples_seen += other.nb_realignment_samples_seen
+        self.nb_realignment_samples_seen_before_restart += (
+            other.nb_realignment_samples_seen_before_restart
+        )
+        self.nb_realignment_steps_seen += other.nb_realignment_steps_seen
+        self.has_restarted = self.has_restarted or other.has_restarted
+
     def log_init(self):
         logging.info("*************")
         logging.info("Training info")

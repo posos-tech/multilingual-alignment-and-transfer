@@ -7,6 +7,10 @@ from torch.optim import Adam
 import numpy as np
 import random
 import math
+import hashlib
+import os
+import json
+import dataclasses
 
 from multilingual_eval.training.states import TrainingState
 from multilingual_eval.training.epoch_loop import epoch_loop
@@ -42,6 +46,8 @@ def realignment_training_loop(
     seed=None,
     epoch_callbacks=None,
     realignment_step_callbacks=None,
+    hash_args=None,
+    cache_dir=None,
 ):
     """
     Performs a training loop, with or without realignment
@@ -69,6 +75,9 @@ def realignment_training_loop(
     - realignment_coef_scheduler: a function that takes an integer (the epoch) and return a float, the coefficient to apply to the realignment loss at
         given epochs, overrides realignment_coef
     - data_collator: default None, if None, will default to DataCollatorForTokenClassification(tokenizer)
+    - hash_args: default None, optional string to add to hashing realigned models (only with before strategy), will cache only if it is provided (ideally with model name, id for realignment dataset and commit hash)
+        and if cache_dir is provided
+    - cache_dir: default None, optional directory for caching models
     """
     data_collator = data_collator or DataCollatorForTokenClassification(tokenizer)
     epoch_callbacks = epoch_callbacks or []
@@ -107,6 +116,7 @@ def realignment_training_loop(
 
     # If needed, create dataloader for re-alignment task
     if strategy != "baseline":
+        # Note: if this line is modified, hashing args for caching must be checked
         realignment_dataloader = DataLoader(
             realignment_dataset,
             shuffle=False,
@@ -141,29 +151,82 @@ def realignment_training_loop(
 
     # If strategy is "before" or "before+during", perform realignment before fine-tuning
     if strategy in ["before", "before+during"]:
+        use_caching = cache_dir is not None and hash_args is not None and seed is not None
 
-        before_optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
+        learning_rate = 2e-5
 
-        training_state = epoch_loop(
-            model,
-            before_optimizer,
-            task_dataloader=None,
-            realignment_dataloader=realignment_dataloader,
-            task_accumulation_steps=accumulation_steps,
-            logging_steps=logging_steps,
-            log_in_wandb=log_in_wandb,
-            nb_iter=(
-                len(task_dataloader) * n_epochs
-                if nb_realignment_steps_before is None
-                else nb_realignment_steps_before * accumulation_steps
-            ),
-            realignment_step_callbacks=realignment_step_callbacks,
-            training_state=training_state,
+        realignment_steps_before = (
+            math.ceil(len(task_dataloader) / accumulation_steps) * n_epochs
+            if nb_realignment_steps_before is None
+            else nb_realignment_steps_before
         )
 
-        res = training_state.log_state()
-        if log_in_wandb:
-            wandb.log(res)
+        if use_caching:
+            string_to_hash = (
+                hash_args
+                + "__"
+                + "__".join(
+                    [
+                        str(learning_rate),
+                        str(seed),
+                        str(realignment_batch_size),
+                        str(realignment_steps_before),
+                    ]
+                )
+            )
+            model_hash = hashlib.md5(string_to_hash.encode()).hexdigest()
+
+            cache_path = os.path.join(cache_dir, model_hash)
+            training_state_path = os.path.join(cache_dir, f"{model_hash}.json")
+        else:
+            cache_path = None
+            training_state_path = None
+
+        # Note: if this line is modified, hashing args for caching must be checked
+        before_optimizer = Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
+
+        found_caching = False
+
+        if cache_path is not None and os.path.isfile(training_state_path):
+            try:
+                with open(training_state_path, "r") as f:
+                    other_training_state = TrainingState(**json.load(f))
+                    training_state.update_from_other_finetuning(other_training_state)
+                found_caching = True
+            except json.decoder.JSONDecodeError:
+                logging.error(f"Could not decode cached training state. Will not use the cache.")
+
+        if found_caching:
+            logging.info(f"Loading cached model: {model_hash}")
+            model = model.__class__.from_pretrained(cache_path)
+        else:
+
+            training_state = epoch_loop(
+                model,
+                before_optimizer,
+                task_dataloader=None,
+                realignment_dataloader=realignment_dataloader,
+                task_accumulation_steps=1,
+                logging_steps=logging_steps,
+                log_in_wandb=log_in_wandb,
+                nb_iter=realignment_steps_before,
+                realignment_step_callbacks=realignment_step_callbacks,
+                training_state=training_state,
+            )
+
+            res = training_state.log_state()
+            if log_in_wandb:
+                wandb.log(res)
+
+            if cache_path is not None:
+                logging.info(f"Saving realigned model: {model_hash}")
+                model.save_pretrained(cache_path)
+
+                with open(os.path.join(cache_path, "info.txt"), "w") as f:
+                    f.write(string_to_hash + "\n")
+
+                with open(training_state_path, "w") as f:
+                    json.dump(dataclasses.asdict(training_state), f)
 
     optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
     scheduler = get_scheduler(
