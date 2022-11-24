@@ -78,10 +78,15 @@ class TrainingState:
         accumulation_steps=1,
         nb_realignment_steps_before=None,
     ):
+        nb_finetuning_steps_expected = (
+            math.ceil(len(task_dataloader) / accumulation_steps) * n_epochs
+        )
+        nb_finetuning_samples_expected = len(task_dataset)
+
         nb_realignment_steps_expected = 0
         nb_realignment_samples_expected = 0
         if strategy == "during":
-            nb_realignment_steps_expected = n_epochs * len(task_dataloader)
+            nb_realignment_steps_expected = nb_finetuning_steps_expected
             nb_realignment_samples_expected = nb_realignment_steps_expected * realignment_batch_size
         elif strategy in ["before", "after"]:
             if nb_realignment_steps_before is not None:
@@ -90,12 +95,12 @@ class TrainingState:
                     nb_realignment_steps_expected * realignment_batch_size
                 )
             else:
-                nb_realignment_steps_expected = n_epochs * len(task_dataloader)
+                nb_realignment_steps_expected = nb_finetuning_steps_expected
                 nb_realignment_samples_expected = (
                     nb_realignment_steps_expected * realignment_batch_size
                 )
         elif strategy == "before+during":
-            nb_realignment_steps_expected = n_epochs * len(task_dataloader)
+            nb_realignment_steps_expected = nb_finetuning_steps_expected
             nb_realignment_samples_expected = nb_realignment_steps_expected * realignment_batch_size
             if nb_realignment_steps_before is not None:
                 nb_realignment_steps_expected += nb_realignment_steps_before
@@ -103,15 +108,10 @@ class TrainingState:
                     nb_realignment_steps_expected * realignment_batch_size
                 )
             else:
-                nb_realignment_steps_expected += n_epochs * len(task_dataloader)
+                nb_realignment_steps_expected += nb_finetuning_steps_expected
                 nb_realignment_samples_expected += (
                     nb_realignment_steps_expected * realignment_batch_size
                 )
-
-        nb_finetuning_steps_expected = (
-            math.ceil(len(task_dataloader) / accumulation_steps) * n_epochs
-        )
-        nb_finetuning_samples_expected = len(task_dataset)
 
         self = cls(
             nb_realignment_samples_expected=nb_realignment_samples_expected,
