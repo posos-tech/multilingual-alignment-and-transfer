@@ -73,11 +73,6 @@ get_wikiann_ner = get_token_classification_getter(
         cache_dir=cache_dir,
     ),
     "ner_tags",
-    language_specific_preprocessing=[
-        StanfordSegmenterWithLabelAlignmentMapper.get_language_specific_dataset_transformer(
-            label_name="ner_tags"
-        )
-    ],
 )
 
 

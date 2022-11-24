@@ -3,7 +3,7 @@
 from collections import defaultdict
 import itertools
 import logging
-from transformers import DataCollatorWithPadding
+from transformers import DataCollatorWithPadding, XLMRobertaTokenizer, XLMRobertaTokenizerFast
 from dataclasses import dataclass
 from typing import Dict, Optional, Set, Tuple, List
 import torch
@@ -24,8 +24,13 @@ from multilingual_eval.datasets.fastalign_realignment import (
     get_fastalign_realignment_dataset_from_path,
 )
 from multilingual_eval.datasets.translation_dataset import get_news_commentary, get_opus100
+from multilingual_eval.datasets.chinese_segmenter import StanfordSegmenter
 from multilingual_eval.datasets.xtreme_udpos import get_xtreme_udpos
-from multilingual_eval.utils import get_tokenizer_type, subwordlist_to_wordlist
+from multilingual_eval.utils import (
+    get_tokenizer_type,
+    subwordlist_to_wordlist,
+    LanguageSpecificTokenizer,
+)
 
 
 @dataclass
@@ -72,19 +77,26 @@ class DatasetMapperForRealignment:
 
     def __init__(
         self,
-        tokenizer,
         left_key: str,
         right_key: str,
         dico_path=None,
         dico=None,
         dictionary_fraction=1.0,
         split="all",
-        max_length=None,
         ignore_identical=True,
         add_identical=False,
+        zh_segmenter: Optional[StanfordSegmenter] = None,
     ):
-        self.tokenizer = tokenizer
-        self._tokenizer_type = get_tokenizer_type(tokenizer)
+        if left_key == "zh" or right_key == "zh" and zh_segmenter is None:
+            logging.warning(
+                f"DatasetMapperForRealignment: segmenter is None whereas zh is one of the two languages passed. Will default to RegexTokenizer"
+            )
+        self.left_tokenizer = LanguageSpecificTokenizer(
+            specific_segmenter=zh_segmenter if left_key == "zh" else None
+        )
+        self.right_tokenizer = LanguageSpecificTokenizer(
+            specific_segmenter=zh_segmenter if right_key == "zh" else None
+        )
 
         if dico is None:
             forward, backward = get_dicos(
@@ -92,7 +104,7 @@ class DatasetMapperForRealignment:
                 right_key,
                 dico_path,
                 ignore_identical=ignore_identical,
-                tokenizer=tokenizer,
+                tokenize=False,
                 split=split,
             )
 
@@ -110,86 +122,61 @@ class DatasetMapperForRealignment:
         self.left_key = left_key
         self.right_key = right_key
 
-        self._max_left_length = max(map(len, forward))
-        self._max_right_length = max(map(len, backward))
-
-        self.perfs = defaultdict(lambda: [0.0, 0])
         self.add_identical = add_identical
 
-        self.max_length = max_length
-
-    def tokenize_sentences(self, left_sent, right_sent) -> Tuple[List[str], List[str]]:
+    def __call__(self, example):
         """
-        Tokenize both translated sentences and apply
-        truncation if needed
+        Take an translation sample of the form {"name_of_lang_1": "sentence", "name_of_lang_2": "sentence"}
+        and return a sample for a realignment task, with properties:
+        - left_tokens: list of tokens for the left language
+        - right_tokens: same for right lang
+        - aligned_left_ids: positions in left_tokens of aligned pairs
+        - aligned_right_ids: positions in right_tokens of aligned pairs
         """
+        left_sent = example[self.left_key]
+        right_sent = example[self.right_key]
 
-        if left_sent is None or right_sent is None:
-            raise Exception(
-                "null sentence found in dataset. Please filter translation datasets for null sentences"
+        left_tokens = self.left_tokenizer.tokenize(left_sent)
+        right_tokens = self.right_tokenizer.tokenize(right_sent)
+
+        aligned_left_ids, aligned_right_ids = self.find_aligned_words(left_tokens, right_tokens)
+
+        if self.add_identical:
+            (new_aligned_left_ids, new_aligned_right_ids,) = self.add_identical_words(
+                left_tokens, right_tokens, aligned_left_ids, aligned_right_ids
             )
+            aligned_left_ids += new_aligned_left_ids
+            aligned_right_ids += new_aligned_right_ids
 
-        left_tokens = self.tokenizer.tokenize(left_sent)
-        right_tokens = self.tokenizer.tokenize(right_sent)
+        return {
+            "left_tokens": left_tokens,
+            "right_tokens": right_tokens,
+            "aligned_left_ids": aligned_left_ids,
+            "aligned_right_ids": aligned_right_ids,
+        }
 
-        if self.max_length is not None:
-            left_tokens = left_tokens[: self.max_length - 2]
-            right_tokens = right_tokens[: self.max_length - 2]
-
-        return left_tokens, right_tokens
-
-    def create_multi_subwords(self, left_tokens: List[str], right_tokens: List[str]):
+    def find_aligned_words(self, left_tokens, right_tokens):
         """
-        Generates candidate multi-tokens expression for the alignment table, based
-        on the maximum length in term of tokens of words in the bilingual dictionary
-
-        Returns:
-        - left_multi: a list of tuple of strings representing the multi-word
-            candidate expressions in the left sentence (generally of size 1 except for chinese)
-        - left_multi_pos: a list of list of int of size Nx2 indicating the start and end offset of
-            each element of left_multi
-        - right_multi: left_multi_pos but for the right sentence
-        - right_multi_pos: left_multi_pos but bfor the right sentence
-        """
-
-        left_multi: List[Tuple[str]] = []
-        left_multi_pos: List[List[int]] = []
-        for length in range(1, self._max_left_length + 1):
-            for i in range(0, len(left_tokens) - length + 1):
-                left_multi.append(tuple(left_tokens[i : i + length]))
-                left_multi_pos.append([i + 1, i + 1 + length])
-
-        right_multi = []
-        right_multi_pos = []
-        for length in range(1, self._max_right_length + 1):
-            for i in range(0, len(right_tokens) - length + 1):
-                right_multi.append(tuple(right_tokens[i : i + length]))
-                right_multi_pos.append([i + 1, i + 1 + length])
-
-        return left_multi, left_multi_pos, right_multi, right_multi_pos
-
-    def find_aligned_words(self, left_multi, left_multi_pos, right_multi, right_multi_pos):
-        """
-        Compare subsets of consecutive tokens from both sentence and add them to the alignment table
+        Compare tokens from both sentence and add them to the alignment table
         if they are in the bilingual dictionary (and if there is no ambiguity)
         Returns:
-        - aligned_left_multi_pos: a list of list of int of size Nx2 indicating the start and end offset
-            (in term of subwords) of each aligned element
-        - aligned_right_multi_pos: offsets of the translation of each word referenced by aligned_left_multi_pos
+        - aligned_left_multi_ids: a list of int of size N indicating the position
+            (in term of tokens) of each aligned element
+        - aligned_right_multi_ids: potision of the translation of each word referenced by aligned_left_multi_pos
         """
-        aligned_left_multi_pos = []
-        aligned_right_multi_pos = []
-        for left_pos, word in zip(left_multi_pos, left_multi):
-            candidates = self.dico.forward.get(word, set()).intersection(right_multi)
+        aligned_left_ids = []
+        aligned_right_ids = []
+
+        for left_pos, word in enumerate(left_tokens):
+            candidates = self.dico.forward.get(word, set()).intersection(right_tokens)
 
             # Verify that there is one and only one candidate in set of words
             if len(candidates) != 1:
                 continue
 
             # Verify that there is only one occurence of this word and extract it
-            i = -1
-            for i, (right_pos, tgt_word) in enumerate(
-                filter(lambda x: x[1] in candidates, zip(right_multi_pos, right_multi))
+            for i, (right_pos, right_word) in enumerate(
+                filter(lambda x: x[1] in candidates, enumerate(right_tokens))
             ):
                 if i == 1:
                     break
@@ -197,137 +184,64 @@ class DatasetMapperForRealignment:
                 continue
 
             # Verify that the target word is not the translation of another word in the source
-            backward_candidates = self.dico.backward.get(tgt_word, set())
+            backward_candidates = self.dico.backward.get(right_word, set())
             counter = 0
-            for w in left_multi:
+            for w in left_tokens:
                 if w in backward_candidates:
                     counter += 1
+                if counter > 1:
+                    break
             if counter != 1:
                 continue
 
-            aligned_left_multi_pos.append(left_pos)
-            aligned_right_multi_pos.append(right_pos)
-        return aligned_left_multi_pos, aligned_right_multi_pos
+            aligned_left_ids.append(left_pos)
+            aligned_right_ids.append(right_pos)
+        return aligned_left_ids, aligned_right_ids
 
-    def add_identical_expressions(self, left_multi, left_multi_pos, right_multi, right_multi_pos):
+    def add_identical_words(self, left_tokens, right_tokens, aligned_left_ids, aligned_right_ids):
         """
-        Add identical expression found in both sentences
+        Add identical words found in both sentences
         """
-        new_aligned_left_multi_pos = []
-        new_aligned_right_multi_pos = []
-        for (left_start, left_end), left_expression in zip(left_multi_pos, left_multi):
-            for (right_start, right_end), right_expression in zip(right_multi_pos, right_multi):
-                if left_expression == right_expression:
-                    new_aligned_left_multi_pos.append([left_start, left_end])
-                    new_aligned_right_multi_pos.append([right_start, right_end])
-        return new_aligned_left_multi_pos, new_aligned_right_multi_pos
+        new_aligned_left_ids = []
+        new_aligned_right_ids = []
 
-    def remove_overlapping_aligned(self, aligned_left_multi_pos, aligned_right_multi_pos):
-        """
-        Remove overlapping aligned pairs to avoid any confusion
-        """
-        to_remove = set()
-        for i, (start_i, end_i) in enumerate(aligned_left_multi_pos):
-            for j, (start_j, end_j) in enumerate(aligned_left_multi_pos):
-                if j == i:
-                    continue
-                if start_i <= start_j and end_j <= end_i:
-                    to_remove.add(j)
-                elif start_j <= start_i and end_i <= end_j:
-                    to_remove.add(j)
-        for i, (start_i, end_i) in enumerate(aligned_right_multi_pos):
-            for j, (start_j, end_j) in enumerate(aligned_right_multi_pos):
-                if j == i:
-                    continue
-                if start_i <= start_j and end_j <= end_i:
-                    to_remove.add(j)
-                elif start_j <= start_i and end_i <= end_j:
-                    to_remove.add(j)
-        to_remove = sorted(list(to_remove), reverse=True)
-        for i in to_remove:
-            del aligned_left_multi_pos[i], aligned_right_multi_pos[i]
+        for left_pos, left_token in enumerate(left_tokens):
+            for right_pos, right_token in enumerate(right_tokens):
+                if (
+                    left_token == right_token
+                    and left_pos not in aligned_left_ids
+                    and right_pos not in aligned_right_ids
+                ):
+                    new_aligned_left_ids.append(left_pos)
+                    new_aligned_right_ids.append(right_pos)
 
-    def create_words_from_subwords(self, left_tokens, right_tokens):
-        """
-        Returns the position range of each word in each sentence in term
-        of subword/token
-        """
+        return new_aligned_left_ids, new_aligned_right_ids
 
-        _, left_word_positions = subwordlist_to_wordlist(
-            left_tokens, split_type=self._tokenizer_type
-        )
-        _, right_word_positions = subwordlist_to_wordlist(
-            right_tokens, split_type=self._tokenizer_type
-        )
-        return left_word_positions, right_word_positions
 
-    def create_final_subword_list(
-        self,
-        left_word_positions,
-        right_word_positions,
-        aligned_left_multi_pos,
-        aligned_right_multi_pos,
+class AdaptAlignmentToTokenizerMapper:
+    """
+    Class for a dataset mapper that adapts word positions from the DatasetMapperForRealignment
+    according to a model-specific tokenization, a bit like when realigning labels of a token-wise
+    classification
+    """
+
+    def __init__(
+        self, tokenizer, max_length=None, remove_underscore_if_roberta=True, first_subword_only=True
     ):
-        """
-        From the position ranges of aligned expressions (aligned_left_multi_pos and aligned_right_multi_pos)
-        and from the position ranges of words (left_word_positions and right_word_positions) build lists of
-        positions of all word (aligned and non-aligned) without any overlapping (alignment_left_positions and
-        alignment_right_positions) as well as the index of aligned words/expressions in those list
-        (alignment_left_ids and alignment_right_ids)
-        """
-        # Create set of positions included in aligned expressions
-        left_covered_ids = set()
-        for start, end in aligned_left_multi_pos:
-            left_covered_ids = left_covered_ids.union(range(start, end))
-
-        right_covered_ids = set()
-        for start, end in aligned_right_multi_pos:
-            right_covered_ids = right_covered_ids.union(range(start, end))
-
-        alignment_left_ids = []
-        alignment_right_ids = []
-        alignment_left_positions = []
-        alignment_right_positions = []
-
-        # Add position of entire words that are not aligned nor overlapping an aligned expression
-        for start, end in left_word_positions:
-            if start not in left_covered_ids and end - 1 not in left_covered_ids:
-                alignment_left_positions.append([start, end])
-
-        # Build the positions of all words as the concatenation of all entire words which do not
-        # overlap with aligned words, and the position of aligned words
-        alignment_left_ids = list(
-            range(
-                len(alignment_left_positions),
-                len(alignment_left_positions) + len(aligned_left_multi_pos),
-            )
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.first_subword_only = first_subword_only
+        self.remove_underscore = remove_underscore_if_roberta and isinstance(
+            self.tokenizer, (XLMRobertaTokenizer, XLMRobertaTokenizerFast)
         )
-        alignment_left_positions += aligned_left_multi_pos
+        if self.remove_underscore:
+            self.underscore_id = self.tokenizer.convert_tokens_to_ids(["▁"])[0]
 
-        # Repeat the same for the right sentence
-        for start, end in right_word_positions:
-            if start not in right_covered_ids and end - 1 not in right_covered_ids:
-                alignment_right_positions.append([start, end])
-
-        alignment_right_ids = list(
-            range(
-                len(alignment_right_positions),
-                len(alignment_right_positions) + len(aligned_right_multi_pos),
-            )
-        )
-        alignment_right_positions += aligned_right_multi_pos
-
-        return (
-            alignment_left_ids,
-            alignment_right_ids,
-            alignment_left_positions,
-            alignment_right_positions,
-        )
-
-    def __call__(self, example):
+    def __call__(self, examples):
         """
-        Take an translation sample of the form {"name_of_lang_1": "sentence", "name_of_lang_2": "sentence"}
-        and return a sample for a realignment task, with properties:
+        Take batch of sentences with aligned words extracted from a translation dataset
+        (left_tokens, right_tokens, aligned_left_ids, and aligned_right_ids) and return
+        a sample for a realignment task, with properties:
         - left_*: (like left_input_ids) result of the tokenizer for the left sentence
         - right_*: same for the right sentence
         - alignment_left_positions: position range of all words in the left sentence (in term of subword)
@@ -338,69 +252,144 @@ class DatasetMapperForRealignment:
         - alignment_left_length: the number of word in alignment_left_positions (usefull for truncation)
         - alignment_right_length: the same for the right sentence
         """
-        left_sent = example[self.left_key]
-        right_sent = example[self.right_key]
+        left_tokens = examples["left_tokens"]
+        right_tokens = examples["right_tokens"]
+        aligned_left_ids = examples["aligned_left_ids"]
+        aligned_right_ids = examples["aligned_right_ids"]
 
-        left_tokens, right_tokens = self.tokenize_sentences(left_sent, right_sent)
-
-        left_multi, left_multi_pos, right_multi, right_multi_pos = self.create_multi_subwords(
-            left_tokens, right_tokens
+        left_tokenized_inputs = self.tokenizer(
+            left_tokens, truncation=True, is_split_into_words=True, max_length=self.max_length
+        )
+        right_tokenized_inputs = self.tokenizer(
+            right_tokens, truncation=True, is_split_into_words=True, max_length=self.max_length
         )
 
-        aligned_left_multi_pos, aligned_right_multi_pos = self.find_aligned_words(
-            left_multi, left_multi_pos, right_multi, right_multi_pos
+        alignment_left_pos, new_left_inputs = self.retrieve_positions_and_remove_underscore(
+            left_tokenized_inputs, left_tokens
         )
-
-        if self.add_identical:
-            (
-                new_aligned_left_multi_pos,
-                new_aligned_right_multi_pos,
-            ) = self.add_identical_expressions(
-                left_multi, left_multi_pos, right_multi, right_multi_pos
-            )
-            aligned_left_multi_pos += new_aligned_left_multi_pos
-            aligned_right_multi_pos += new_aligned_right_multi_pos
-
-        # re-merge "words" afterwards
-        # first, deduplicate aligned pairs that overlap
-        # (e.g. remove ["maison", "house"] if we have ["maisons", "houses"] at the same place)
-        # we only deal with simple case (inclusion) no weird overlap
-        self.remove_overlapping_aligned(aligned_left_multi_pos, aligned_right_multi_pos)
-
-        # then, we merge subwords into words when possible
-        left_word_positions, right_word_positions = self.create_words_from_subwords(
-            left_tokens, right_tokens
+        alignment_right_pos, new_right_inputs = self.retrieve_positions_and_remove_underscore(
+            right_tokenized_inputs, right_tokens
         )
 
         (
-            alignment_left_ids,
-            alignment_right_ids,
-            alignment_left_positions,
-            alignment_right_positions,
-        ) = self.create_final_subword_list(
-            left_word_positions,
-            right_word_positions,
-            aligned_left_multi_pos,
-            aligned_right_multi_pos,
+            alignment_left_pos,
+            alignment_right_pos,
+            aligned_left_ids,
+            aligned_right_ids,
+        ) = self.realign_pairs(
+            alignment_left_pos, alignment_right_pos, aligned_left_ids, aligned_right_ids
         )
 
         return {
-            **{
-                f"left_{k}": v[: self.max_length] if self.max_length is not None else v
-                for k, v in self.tokenizer(left_sent).items()
-            },
-            **{
-                f"right_{k}": v[: self.max_length] if self.max_length is not None else v
-                for k, v in self.tokenizer(right_sent).items()
-            },
-            "alignment_left_ids": alignment_left_ids,
-            "alignment_right_ids": alignment_right_ids,
-            "alignment_left_positions": alignment_left_positions,
-            "alignment_right_positions": alignment_right_positions,
-            "alignment_nb": len(alignment_left_ids),
-            "alignment_left_length": len(alignment_left_positions),
-            "alignment_right_length": len(alignment_right_positions),
+            **{f"left_{k}": v for k, v in new_left_inputs.items()},
+            **{f"right_{k}": v for k, v in new_right_inputs.items()},
+            "alignment_left_ids": aligned_left_ids,
+            "alignment_right_ids": aligned_right_ids,
+            "alignment_left_positions": alignment_left_pos,
+            "alignment_right_positions": alignment_right_pos,
+            "alignment_nb": [len(elt) for elt in aligned_left_ids],
+            "alignment_left_length": [len(elt) for elt in alignment_left_pos],
+            "alignment_right_length": [len(elt) for elt in alignment_right_pos],
         }
+
+    def retrieve_positions_and_remove_underscore(self, tokenized_inputs, tokens):
+        """
+        Retrieve positions of words in term of subword and remove special Roberta underscore
+        if needed
+        """
+        if self.remove_underscore:
+            result = {key: [] for key in tokenized_inputs}
+        else:
+            result = tokenized_inputs
+
+        n = len(tokenized_inputs["input_ids"])
+
+        positions = [[None for _ in sent] for sent in tokens]
+        for i in range(n):
+            word_ids = tokenized_inputs.word_ids(batch_index=i)
+            if self.remove_underscore:
+                result_sample = {key: [] for key in tokenized_inputs if key in result}
+            delta = 0
+            for j, word_idx in enumerate(word_ids):
+
+                if self.remove_underscore:
+                    if tokenized_inputs["input_ids"][i][j] == self.underscore_id:
+                        delta += -1
+                        continue
+                    for key in result_sample:
+                        result_sample[key].append(tokenized_inputs[key][i][j])
+
+                if word_idx is None:
+                    continue
+
+                if positions[i][word_idx] is None:
+                    positions[i][word_idx] = [j + delta, j + delta + 1]
+                elif not self.first_subword_only:
+                    positions[i][word_idx][1] = j + delta + 1
+
+            if self.remove_underscore:
+                for key, value in result_sample.items():
+                    result[key].append(value)
+
+        return positions, result
+
+    def realign_pairs(
+        self, alignment_left_pos, alignment_right_pos, alignment_left_ids, alignment_right_ids
+    ):
+        """
+        Remove null values in positions of words (in alignment_left_pos and alignment_right_pos)
+        and modifies alignment_left_ids and alignment_right_ids accordingly
+        """
+
+        new_alignment_left_pos = []
+        new_alignment_right_pos = []
+        new_alignment_left_ids = []
+        new_alignment_right_ids = []
+
+        n = len(alignment_left_pos)
+        for i in range(n):
+            alignment_left_pos_entry = []
+            alignment_right_pos_entry = []
+
+            left_old_to_new_pos = []
+            right_old_to_new_pos = []
+
+            for pos in alignment_left_pos[i]:
+                if pos is None:
+                    left_old_to_new_pos.append(None)
+                else:
+                    alignment_left_pos_entry.append(pos)
+                    left_old_to_new_pos.append(len(alignment_left_pos_entry) - 1)
+
+            for pos in alignment_right_pos[i]:
+                if pos is None:
+                    right_old_to_new_pos.append(None)
+                else:
+                    alignment_right_pos_entry.append(pos)
+                    right_old_to_new_pos.append(len(alignment_right_pos_entry) - 1)
+
+            alignment_left_ids_entry = []
+            alignment_right_ids_entry = []
+
+            for left_idx, right_idx in zip(alignment_left_ids[i], alignment_right_ids[i]):
+                if (
+                    left_old_to_new_pos[left_idx] is not None
+                    and right_old_to_new_pos[right_idx] is not None
+                ):
+                    alignment_left_ids_entry.append(left_old_to_new_pos[left_idx])
+                    alignment_right_ids_entry.append(right_old_to_new_pos[right_idx])
+
+            new_alignment_left_pos.append(alignment_left_pos_entry)
+            new_alignment_right_pos.append(alignment_right_pos_entry)
+            new_alignment_left_ids.append(alignment_left_ids_entry)
+            new_alignment_right_ids.append(alignment_right_ids_entry)
+
+        return (
+            new_alignment_left_pos,
+            new_alignment_right_pos,
+            new_alignment_left_ids,
+            new_alignment_right_ids,
+        )
 
 
 class DatasetMapperForInjectingRealignmentData:
@@ -578,6 +567,7 @@ def get_realignment_dataset(
     ignore_identical=True,
     add_identical=False,
     split="all",
+    zh_segmenter: Optional[StanfordSegmenter] = None,
 ):
     """
     Build a realignment dataset from a translation dataset
@@ -598,18 +588,21 @@ def get_realignment_dataset(
     - seed
     - max_length
     - ignore_identical: whether to ignore identical words in the realignment task (default to True)
+    - zh_segmener: stanford segmenter for chinese
     """
     mapper = mapper_for_realignment or DatasetMapperForRealignment(
-        tokenizer,
         left_lang,
         right_lang,
         dico_path=dico_path,
         dico=dico,
         dictionary_fraction=dico_fraction,
-        max_length=max_length,
         ignore_identical=ignore_identical,
         add_identical=add_identical,
         split=split,
+        zh_segmenter=zh_segmenter,
+    )
+    model_specific_mapper = AdaptAlignmentToTokenizerMapper(
+        tokenizer, max_length=max_length, first_subword_only=first_subword_only
     )
 
     if not isinstance(translation_dataset, IterableDataset):
@@ -621,8 +614,11 @@ def get_realignment_dataset(
         lambda x: {**x, "left_lang_id": [left_lang_id], "right_lang_id": [right_lang_id]}
     )
 
-    if first_subword_only:
-        translation_dataset = translation_dataset.map(keep_only_first_subword)
+    translation_dataset = translation_dataset.map(
+        model_specific_mapper,
+        remove_columns=["left_tokens", "right_tokens", "aligned_left_ids", "aligned_right_ids"],
+        batched=True,
+    )
 
     translation_dataset = (
         translation_dataset.filter(lambda x: len(x["alignment_left_ids"]) > 0)
@@ -650,6 +646,7 @@ def get_multilingual_news_commentary_realignment_dataset(
     ignore_identical=True,
     add_identical=False,
     split="all",
+    zh_segmenter: Optional[StanfordSegmenter] = None,
 ):
     """
     Retrieve one or several translation datasets and transform them to create a single realignment dataset
@@ -709,6 +706,7 @@ def get_multilingual_news_commentary_realignment_dataset(
                 ignore_identical=ignore_identical,
                 add_identical=add_identical,
                 split=split,
+                zh_segmenter=zh_segmenter,
             )
             for i, (left_lang, right_lang) in enumerate(lang_pairs)
         ]

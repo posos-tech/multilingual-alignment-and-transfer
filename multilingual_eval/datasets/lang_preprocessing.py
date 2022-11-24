@@ -3,7 +3,6 @@ Source code for language-specific preprocessing
 """
 import logging
 
-
 from multilingual_eval.datasets.chinese_segmenter import StanfordSegmenter
 
 
@@ -13,19 +12,12 @@ class StanfordSegmenterWithLabelAlignmentMapper:
     to re-segment a chinese token classification dataset that has been tokenized by character (such as wikiann)
     """
 
-    def __init__(self, label_name="labels"):
+    def __init__(self, zh_segmenter: StanfordSegmenter, label_name="labels"):
         """
         - label_name, str: name of the label in the original dataset
         """
         self.label_name = label_name
-
-    def __enter__(self):
-        self.segmenter = StanfordSegmenter().__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.segmenter.__exit__(exc_type, exc_val, exc_tb)
-        self.segmenter = None
+        self.zh_segmenter = zh_segmenter
 
     def relabel(self, labels, new_tokens):
         offset = 0
@@ -90,18 +82,8 @@ class StanfordSegmenterWithLabelAlignmentMapper:
 
         sent = "".join(tokens)
 
-        new_tokens = self.segmenter(sent)
+        new_tokens = self.zh_segmenter(sent)
 
         new_tokens, new_labels = self.relabel(labels, new_tokens)
 
         return {"tokens": new_tokens, self.label_name: new_labels}
-
-    @classmethod
-    def get_language_specific_dataset_transformer(cls, label_name="labels"):
-        def language_specific_transformer(lang, dataset):
-            if lang == "zh":
-                with cls(label_name) as mapper:
-                    return dataset.map(mapper, batched=False)
-            return dataset
-
-        return language_specific_transformer

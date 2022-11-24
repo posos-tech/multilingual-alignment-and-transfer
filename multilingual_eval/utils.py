@@ -5,6 +5,10 @@ from typing import List, Tuple, Optional, Set
 from transformers import AutoTokenizer
 from datasets import load_metric
 import logging
+import re
+from collections import defaultdict
+
+from multilingual_eval.datasets.chinese_segmenter import StanfordSegmenter
 
 
 def get_nb_layers(model):
@@ -161,6 +165,57 @@ class UniversalTokenizer:
             (offset_mapping[elt[0] + 1][0], offset_mapping[elt[1]][1]) for elt in subword_offsets
         ]
         return words, offsets
+
+
+class RegexTokenizer:
+    """
+    Tokenizer inspired by NLTK WordPunctTokenizer based on a regex
+    that separates alphanumeric characters and non-alphanumeric ones
+    (thanks to the wide definition of \w in Python, it should work for
+    any whitespace-tokenized language and deal with punctuation)
+    """
+
+    _regexp = re.compile(r"\w+|[^\w\s]+", re.UNICODE | re.MULTILINE | re.DOTALL)
+
+    def tokenize(self, sentence):
+        return self._regexp.findall(sentence)
+
+
+class ChineseTokenizer:
+    """
+    Tokenizer (or rather segmenter) based on the Stanford segmenter
+    for chinese
+    """
+
+    def __init__(self, segmenter: StanfordSegmenter):
+        self.segmenter = segmenter
+
+    def tokenize(self, sentence):
+        if not self.segmenter.entered:
+            raise Exception(f"Segmenter has not started, should be used inside a with statement")
+        return self.segmenter(sentence)
+
+
+class LanguageSpecificTokenizer:
+    """
+    Tokenizer that tokenized differently according to language.
+    If the language is chinese (Mandarin), it uses the Stanford segmenter
+    otherwise, it uses the RegexTokenizer
+    """
+
+    def __init__(self, specific_segmenter: Optional[StanfordSegmenter] = None):
+        """
+        - zh_segmenter: optional, but if not provided (and started with a with-statement), will default
+        to regex tokenizer when tokenizing chinese (not recommended)
+        """
+        if specific_segmenter:
+            self._tokenizer = ChineseTokenizer(specific_segmenter)
+        else:
+            self._tokenizer = RegexTokenizer()
+
+    def tokenize(self, sentence):
+
+        return self._tokenizer.tokenize(sentence)
 
 
 def load_embedding(

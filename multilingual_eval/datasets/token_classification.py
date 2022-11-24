@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, Optional
 import numpy as np
 import pycountry
 
@@ -9,12 +9,13 @@ from multilingual_eval.datasets.code_switching import (
 from multilingual_eval.datasets.data_utils import convert_dataset_to_iterable_dataset
 
 from multilingual_eval.datasets.label_alignment import LabelAlignmentMapper
+from multilingual_eval.datasets.lang_preprocessing import StanfordSegmenterWithLabelAlignmentMapper
+from multilingual_eval.datasets.chinese_segmenter import StanfordSegmenter
 
 
 def get_token_classification_getter(
     subset_loader,
     label_name: str,
-    language_specific_preprocessing=None,
 ):
     """
     Return a function that would load a token classification dataset and perform the
@@ -24,12 +25,7 @@ def get_token_classification_getter(
     - subset_loader: a function that takes two arguments 'lang' (positional) and 'cache_dir' (keyword) that will
         load the dataset for a given language (lang) using the provided cache directory (cache_dir) which is None by default
     - label_name: the name of the properties containing the labels as integers
-    - language_specific_preprocessing: optional function that takes the dataset and the lang and returns a dataset
     """
-    if language_specific_preprocessing is not None and not isinstance(
-        language_specific_preprocessing, list
-    ):
-        language_specific_preprocessing = [language_specific_preprocessing]
 
     def get_token_classification_dataset(
         lang: Union[List[str], str],
@@ -45,6 +41,8 @@ def get_token_classification_getter(
         n_epochs=1,
         max_length=None,
         return_overflowing_tokens=False,
+        zh_segmenter: Optional[StanfordSegmenter] = None,
+        resegment_zh=False,
     ):
         """
         Load a task classification dataset for a given lang
@@ -60,7 +58,16 @@ def get_token_classification_getter(
             datasets or return them as element of a list (default to True)
         - first_subword_only: whether to perform classification on the first subword of each token
             or on each subword (default to True)
+        - zh_segmenter: segmenter object use to resegment annotated text in chinses, when it is character tokenized
+            only used if resegment_zh is True
+        - resegment_zh: default False, resegment chinese annotated data and realign labels when it is
+            character-tokenized. If True, zh_segmenter must be set
         """
+
+        if resegment_zh and zh_segmenter is None:
+            raise Exception(
+                f"resegment_sh is True, so zh_segmenter must be set, whereas it is not."
+            )
 
         if not isinstance(lang, list):
             lang = [lang]
@@ -89,10 +96,15 @@ def get_token_classification_getter(
                 zip(datasets, limits),
             )
 
-        if language_specific_preprocessing is not None:
-
-            for process_fn in language_specific_preprocessing:
-                datasets = map(lambda x: process_fn(*x), zip(lang, datasets))
+        if resegment_zh:
+            datasets = map(
+                lambda x: x[1]
+                if x[0] != "zh"
+                else x[1].map(
+                    StanfordSegmenterWithLabelAlignmentMapper(zh_segmenter, label_name=label_name)
+                ),
+                zip(lang, datasets),
+            )
 
         if n_datasets == 1:
             datasets = [next(iter(datasets))]

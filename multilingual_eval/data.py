@@ -244,7 +244,8 @@ def get_dicos(
     forward_path = os.path.join(dico_path, f"{left_lang}-{right_lang}{dico_suffix}.txt")
     backward_path = os.path.join(dico_path, f"{right_lang}-{left_lang}{dico_suffix}.txt")
 
-    tokenizer = tokenizer or UniversalTokenizer()
+    if tokenize:
+        tokenizer = tokenizer or UniversalTokenizer()
 
     forward_dico: Dict[Tuple[str], Set[Tuple[str]]] = {}
     backward_dico: Dict[Tuple[str], Set[Tuple[str]]] = {}
