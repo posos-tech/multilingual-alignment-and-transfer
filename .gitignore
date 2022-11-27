@@ -5,3 +5,4 @@ local_runs/
 venvs/
 OAR.**
 tools/
+.vscode/
