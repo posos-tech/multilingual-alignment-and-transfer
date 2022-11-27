@@ -71,8 +71,7 @@ class DatasetMapperForRealignment:
     """
     Class for defining a callable that can be used as an argument of datasets.Dataset.map()
     Applied to a translation dataset, it will create an alignment table between tokens of
-    the translated sentences and output samples for training a realignment task as expected
-    by models created with multilingual_eval.models.with_realignment_factory.model_with_realignment_factory
+    the translated sentences
     """
 
     def __init__(
