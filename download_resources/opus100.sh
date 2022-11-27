@@ -11,13 +11,18 @@ for lang in $langs; do
 
     pair=$(python -c "print('-'.join(sorted(['en', '$lang'])))")
 
-    wget https://object.pouta.csc.fi/OPUS-100/v1.0/opus-100-corpus-$pair-v1.0.tar.gz -O $OUTPUT_DIR/$pair.tar.gz
+    if [ ! -d $OUTPUT_DIR/$pair ]; then
 
-    tar -xvzf $OUTPUT_DIR/$pair.tar.gz -C $OUTPUT_DIR
+        wget https://object.pouta.csc.fi/OPUS-100/v1.0/opus-100-corpus-$pair-v1.0.tar.gz -O $OUTPUT_DIR/$pair.tar.gz
 
-    mv $OUTPUT_DIR/opus-100-corpus/v1.0/supervised/$pair $OUTPUT_DIR/$pair   
+        tar -xvzf $OUTPUT_DIR/$pair.tar.gz -C $OUTPUT_DIR
 
-    rm $OUTPUT_DIR/$pair.tar.gz
+        mv $OUTPUT_DIR/opus-100-corpus/v1.0/supervised/$pair $OUTPUT_DIR/$pair   
+
+        rm $OUTPUT_DIR/$pair.tar.gz
+    fi
 done
 
-rm -rf $OUTPUT_DIR/opus-100-corpus
+if [ -d $OUTPUT_DIR/opus-100-corpus ]; then
+    rm -rf $OUTPUT_DIR/opus-100-corpus
+fi

@@ -16,4 +16,7 @@ if [ ! -f build/fast_align ]; then
     cd build
     cmake ..
     make
+    cd ..
 fi
+
+cd ../..
