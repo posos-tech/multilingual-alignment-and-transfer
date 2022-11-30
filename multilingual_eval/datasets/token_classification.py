@@ -10,7 +10,7 @@ from multilingual_eval.datasets.data_utils import convert_dataset_to_iterable_da
 
 from multilingual_eval.datasets.label_alignment import LabelAlignmentMapper
 from multilingual_eval.datasets.lang_preprocessing import StanfordSegmenterWithLabelAlignmentMapper
-from multilingual_eval.datasets.chinese_segmenter import StanfordSegmenter
+from multilingual_eval.tokenization.chinese_segmenter import StanfordSegmenter
 
 
 def get_token_classification_getter(

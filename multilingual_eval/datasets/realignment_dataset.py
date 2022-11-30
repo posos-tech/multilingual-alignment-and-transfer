@@ -24,7 +24,7 @@ from multilingual_eval.datasets.fastalign_realignment import (
     get_fastalign_realignment_dataset_from_path,
 )
 from multilingual_eval.datasets.translation_dataset import get_news_commentary, get_opus100
-from multilingual_eval.datasets.chinese_segmenter import StanfordSegmenter
+from multilingual_eval.tokenization.chinese_segmenter import StanfordSegmenter
 from multilingual_eval.datasets.xtreme_udpos import get_xtreme_udpos
 from multilingual_eval.utils import (
     get_tokenizer_type,

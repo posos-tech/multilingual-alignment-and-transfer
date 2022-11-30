@@ -3,7 +3,7 @@ Source code for language-specific preprocessing
 """
 import logging
 
-from multilingual_eval.datasets.chinese_segmenter import StanfordSegmenter
+from multilingual_eval.tokenization.chinese_segmenter import StanfordSegmenter
 
 
 class StanfordSegmenterWithLabelAlignmentMapper:

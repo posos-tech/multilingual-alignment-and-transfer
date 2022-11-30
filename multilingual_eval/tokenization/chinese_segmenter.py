@@ -37,12 +37,26 @@ class StanfordSegmenter:
                 f"LasyChineseSegmenter should be used inside a with statement for necessary cleanup"
             )
 
-        result = self.segmenter.api_call(sent, {"annotators": "tokenize,ssplit"})
-        return [
-            token["originalText"] or token["word"]
-            for sentence in result["sentences"]
-            for token in sentence["tokens"]
-        ]
+        splitting_char = "。"
+        parts = sent.strip().split(splitting_char)
+        tokens = []
+        for i, part in enumerate(parts):
+            if i > 0:
+                tokens.append(splitting_char)
+            if len(part.strip()) == 0:
+                continue
+            try:
+                result = self.segmenter.api_call(part, {"annotators": "tokenize,ssplit"})
+            except requests.exceptions.HTTPError as e:
+                logging.error(f"Got HTTPError with following sentence: {repr(part)}")
+                raise e
+            tokens += [
+                token["originalText"] or token["word"]
+                for sentence in result["sentences"]
+                for token in sentence["tokens"]
+            ]
+
+        return tokens
 
     def initialize(self):
         if self.segmenter is None:

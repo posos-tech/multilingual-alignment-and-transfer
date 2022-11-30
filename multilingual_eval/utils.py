@@ -8,7 +8,7 @@ import logging
 import re
 from collections import defaultdict
 
-from multilingual_eval.datasets.chinese_segmenter import StanfordSegmenter
+from multilingual_eval.tokenization.chinese_segmenter import StanfordSegmenter
 
 
 def get_nb_layers(model):
@@ -296,3 +296,20 @@ def post_on_slack(message: str, thread_ts=None):
     requests.post(webhook, json={"text": message})
 
     return None
+
+
+def count_lines(fname: str):
+    """
+    Count line in file
+    """
+
+    def _count_generator(reader):
+        b = reader(1024 * 1024)
+        while b:
+            yield b
+            b = reader(1024 * 1024)
+
+    with open(fname, "rb") as fp:
+        c_generator = _count_generator(fp.raw.read)
+        count = sum(buffer.count(b"\n") for buffer in c_generator)
+    return count
