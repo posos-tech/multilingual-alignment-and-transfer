@@ -3,12 +3,15 @@ import torch
 from transformers import (
     BertForTokenClassification,
     RobertaForTokenClassification,
+    BertModel,
+    RobertaModel,
 )
 from transformers.modeling_outputs import TokenClassifierOutput
 
 from multilingual_eval.models.modified_transformers.bert_model import (
     encoder_with_optional_mapping_factory,
 )
+from multilingual_eval.models.modified_transformers.utils import get_class_from_model_path
 
 
 def token_classifier_with_optional_mapping_factory(BaseClass):
@@ -119,3 +122,22 @@ CustomBertForTokenClassification = token_classifier_with_optional_mapping_factor
 CustomRobertaForTokenClassification = token_classifier_with_optional_mapping_factory(
     RobertaForTokenClassification,
 )
+
+
+class AutoModelForRealignmentAndTokenClassification:
+    @classmethod
+    def from_pretrained(cls, path: str, *args, cache_dir=None, **kwargs):
+        model_class = get_class_from_model_path(path, cache_dir=cache_dir)
+
+        if issubclass(model_class, BertModel):
+            return token_classifier_with_optional_mapping_factory(
+                BertForTokenClassification,
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        elif issubclass(model_class, RobertaModel):
+            return token_classifier_with_optional_mapping_factory(
+                RobertaForTokenClassification,
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        else:
+            raise Exception(
+                f"AutoModelForRealignmentAndTokenClassification.from_pretrained is not compatible with model of class `{model_class}` (path: {path})"
+            )

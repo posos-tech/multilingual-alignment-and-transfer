@@ -145,3 +145,23 @@ CustomBertForSequenceClassification = sequence_classifier_with_optional_mapping_
 CustomRobertaForSequenceClassification = sequence_classifier_with_optional_mapping_factory(
     RobertaForSequenceClassification, classifier_getter=roberta_sequence_classifier_getter
 )
+
+
+class AutoModelForRealignmentAndSequenceClassification:
+    @classmethod
+    def from_pretrained(cls, path: str, *args, cache_dir=None, **kwargs):
+        model_class = get_class_from_model_path(path, cache_dir=cache_dir)
+
+        if issubclass(model_class, BertModel):
+            return sequence_classifier_with_optional_mapping_factory(
+                BertForSequenceClassification
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        elif issubclass(model_class, RobertaModel):
+            return sequence_classifier_with_optional_mapping_factory(
+                RobertaForSequenceClassification,
+                classifier_getter=roberta_sequence_classifier_getter,
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        else:
+            raise Exception(
+                f"AutoModelForRealignmentAndSequenceClassification.from_pretrained is not compatible with model of class `{model_class}` (path: {path})"
+            )
