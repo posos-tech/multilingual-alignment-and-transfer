@@ -20,9 +20,11 @@ def evaluate_alignment(
     device_for_search="cpu:0",
     csls_k=10,
     strong_alignment=False,
+    layers=None,
 ):
 
     n_dim = model.config.hidden_size
+    layers = layers or [-1]
 
     if not isinstance(alignment_dataset, torch.utils.data.IterableDataset):
         alignment_dataset = TorchCompatibleIterableDataset(alignment_dataset)
@@ -34,8 +36,8 @@ def evaluate_alignment(
         collate_fn=RealignmentCollator(tokenizer),
     )
 
-    left_embs = np.zeros((nb_pairs, n_dim))
-    right_embs = np.zeros((nb_pairs, n_dim))
+    left_embs = np.zeros((len(layers), nb_pairs, n_dim))
+    right_embs = np.zeros((len(layers), nb_pairs, n_dim))
 
     alignment_found = 0
 
@@ -44,27 +46,34 @@ def evaluate_alignment(
         right_batch = {k.lstrip("right_"): v for k, v in batch.items() if k.startswith("right_")}
 
         left_batch = bring_batch_to_model(model)
-        left_reprs = model(**left_batch, output_hidden_states=True).hidden_states[-1]
+        left_output = model(**left_batch, output_hidden_states=True).hidden_states
         right_batch = bring_batch_to_model(model)
-        right_reprs = model(**right_batch, output_hidden_states=True).hidden_states[-1]
+        right_output = model(**right_batch, output_hidden_states=True).hidden_states
 
-        aligned_left_repr = sum_ranges_and_put_together(
-            left_reprs, batch["alignment_left_positions"], ids=batch["alignment_left_ids"],
-        )
-        aligned_right_repr = sum_ranges_and_put_together(
-            right_reprs, batch["alignment_right_positions"], ids=batch["alignment_right_ids"],
-        )
+        end = max(alignment_found + aligned_left_repr.shape[0], left_embs.shape[1])
 
-        aligned_left_repr = (
-            remove_batch_dimension(aligned_left_repr, batch["alignment_nb"]).detach().cpu().numpy()
-        )
-        aligned_right_repr = (
-            remove_batch_dimension(aligned_right_repr, batch["alignment_nb"]).detach().cpu().numpy()
-        )
+        for i, layer in enumerate(layers):
+            left_reprs = left_output[layer]
+            right_reprs = right_output[layer]
+        
 
-        end = max(alignment_found + aligned_left_repr.shape[0], left_embs.shape[0])
-        left_embs[alignment_found:end] = aligned_left_repr[: end - alignment_found]
-        right_embs[alignment_found:end] = aligned_right_repr[: end - alignment_found]
+            aligned_left_repr = sum_ranges_and_put_together(
+                left_reprs, batch["alignment_left_positions"], ids=batch["alignment_left_ids"],
+            )
+            aligned_right_repr = sum_ranges_and_put_together(
+                right_reprs, batch["alignment_right_positions"], ids=batch["alignment_right_ids"],
+            )
+
+            aligned_left_repr = (
+                remove_batch_dimension(aligned_left_repr, batch["alignment_nb"]).detach().cpu().numpy()
+            )
+            aligned_right_repr = (
+                remove_batch_dimension(aligned_right_repr, batch["alignment_nb"]).detach().cpu().numpy()
+            )
+
+        
+            left_embs[i,alignment_found:end] = aligned_left_repr[: end - alignment_found]
+            right_embs[i,alignment_found:end] = aligned_right_repr[: end - alignment_found]
 
         alignment_found = end
 
@@ -74,14 +83,16 @@ def evaluate_alignment(
     if model_back_to_cpu:
         model = model.cpu()
 
-    score = evaluate_alignment_with_cosim(
-        left_embs,
-        right_embs,
-        device=device_for_search,
-        csls_k=csls_k,
-        strong_alignment=1.0 if strong_alignment else 0.0,
-    )
-    return score
+    scores = []
+    for i in range(len(layers)):
+        scores.append(evaluate_alignment_with_cosim(
+            left_embs[i],
+            right_embs[i],
+            device=device_for_search,
+            csls_k=csls_k,
+            strong_alignment=1.0 if strong_alignment else 0.0,
+        ))
+    return scores
 
 
 def evaluate_alignment_for_pairs(
@@ -99,6 +110,7 @@ def evaluate_alignment_for_pairs(
     strong_alignment=False,
     seed=None,
     split="train",
+    layers=None,
 ):
     scores = []
     device_before = model.device
@@ -125,6 +137,7 @@ def evaluate_alignment_for_pairs(
                 device_for_search=device_for_search,
                 csls_k=csls_k,
                 strong_alignment=strong_alignment,
+                layers=layers,
             )
         )
 
