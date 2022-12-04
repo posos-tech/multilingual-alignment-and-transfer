@@ -1,12 +1,14 @@
 
 set -e
 
+source parameters.sh
+
 MODEL_DIR=$1
 
 mkdir -p $MODEL_DIR
 
-if [ ! -d venvs/awesome-align ]; then
-    python -m venv venvs/awesome-align
+if [ ! -d $DATA_DIR/venvs/awesome-align ]; then
+    python -m venv $DATA_DIR/venvs/awesome-align
 fi
 
 cd tools
