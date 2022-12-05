@@ -28,7 +28,7 @@ def get_xnli(
     return_length=False,
     n_epochs=1,
     remove_useless=True,
-    max_length=512,
+    max_length=256,
 ):
     """
     Return XNLI dataset

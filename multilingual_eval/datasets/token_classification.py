@@ -39,8 +39,8 @@ def get_token_classification_getter(
         dictionaries_for_code_switching=None,
         return_length=False,
         n_epochs=1,
-        max_length=None,
-        return_overflowing_tokens=False,
+        max_length=128,
+        return_overflowing_tokens=True,
         zh_segmenter: Optional[StanfordSegmenter] = None,
         resegment_zh=False,
     ):
