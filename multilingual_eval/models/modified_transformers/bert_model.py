@@ -119,7 +119,3 @@ def encoder_with_optional_mapping_factory(BaseClass):
             )
 
     return CustomEncoder
-
-
-BertModelWithOptionalMapping = encoder_with_optional_mapping_factory(BertModel)
-RobertaModelWithOptionalMapping = encoder_with_optional_mapping_factory(RobertaModel)

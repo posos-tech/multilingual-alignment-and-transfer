@@ -7,18 +7,26 @@ import logging
 from transformers.models.bert.modeling_bert import BertPreTrainedModel
 from transformers.file_utils import ModelOutput
 from transformers.modeling_outputs import TokenClassifierOutput, SequenceClassifierOutput
+from transformers import (
+    BertModel,
+    RobertaModel,
+    DistilBertModel,
+)
 
 from merge_args import merge_args
 from multilingual_eval.models.modified_transformers.token_classification import (
     CustomBertForTokenClassification,
     CustomRobertaForTokenClassification,
+    CustomDistilBertForTokenClassification,
 )
 from multilingual_eval.models.modified_transformers.sequence_classification import (
     CustomBertForSequenceClassification,
     CustomRobertaForSequenceClassification,
+    CustomDistilBertForSequenceClassification,
 )
 
 from multilingual_eval.models.realignment_loss import compute_realignment_loss
+from multilingual_eval.models.modified_transformers.utils import get_class_from_model_path
 
 
 def model_with_realignment_factory(
@@ -249,3 +257,49 @@ RobertaForTokenClassificationWithRealignment = model_with_realignment_factory(
 RobertaForSequenceClassificationWithRealignment = model_with_realignment_factory(
     CustomRobertaForSequenceClassification, SequenceClassifierOutput
 )
+
+
+class AutoModelForSequenceClassificationWithRealignment:
+    @classmethod
+    def from_pretrained(cls, path: str, *args, cache_dir=None, **kwargs):
+        model_class = get_class_from_model_path(path, cache_dir=cache_dir)
+
+        if issubclass(model_class, BertModel):
+            return model_with_realignment_factory(
+                CustomBertForSequenceClassification, SequenceClassifierOutput
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        elif issubclass(model_class, RobertaModel):
+            return model_with_realignment_factory(
+                CustomRobertaForSequenceClassification, SequenceClassifierOutput
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        elif issubclass(model_class, DistilBertModel):
+            return model_with_realignment_factory(
+                CustomDistilBertForSequenceClassification, SequenceClassifierOutput
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        else:
+            raise Exception(
+                f"AutoModelForSequenceClassificationWithRealignment.from_pretrained is not compatible with model of class `{model_class}` (path: {path})"
+            )
+
+
+class AutoModelForTokenClassificationWithRealignment:
+    @classmethod
+    def from_pretrained(cls, path: str, *args, cache_dir=None, **kwargs):
+        model_class = get_class_from_model_path(path, cache_dir=cache_dir)
+
+        if issubclass(model_class, BertModel):
+            return model_with_realignment_factory(
+                CustomBertForTokenClassification, TokenClassifierOutput
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        elif issubclass(model_class, RobertaModel):
+            return model_with_realignment_factory(
+                CustomRobertaForTokenClassification, TokenClassifierOutput
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        elif issubclass(model_class, DistilBertModel):
+            return model_with_realignment_factory(
+                CustomDistilBertForTokenClassification, TokenClassifierOutput
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        else:
+            raise Exception(
+                f"AutoModelForTokenClassificationWithRealignment.from_pretrained is not compatible with model of class `{model_class}` (path: {path})"
+            )

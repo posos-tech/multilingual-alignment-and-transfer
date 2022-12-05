@@ -5,6 +5,8 @@ from transformers import (
     RobertaForTokenClassification,
     BertModel,
     RobertaModel,
+    DistilBertModel,
+    DistilBertForTokenClassification,
 )
 from transformers.modeling_outputs import TokenClassifierOutput
 
@@ -122,9 +124,12 @@ CustomBertForTokenClassification = token_classifier_with_optional_mapping_factor
 CustomRobertaForTokenClassification = token_classifier_with_optional_mapping_factory(
     RobertaForTokenClassification,
 )
+CustomDistilBertForTokenClassification = token_classifier_with_optional_mapping_factory(
+    DistilBertForTokenClassification,
+)
 
 
-class AutoModelForRealignmentAndTokenClassification:
+class CustomAutoModelForTokenClassification:
     @classmethod
     def from_pretrained(cls, path: str, *args, cache_dir=None, **kwargs):
         model_class = get_class_from_model_path(path, cache_dir=cache_dir)
@@ -137,7 +142,11 @@ class AutoModelForRealignmentAndTokenClassification:
             return token_classifier_with_optional_mapping_factory(
                 RobertaForTokenClassification,
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        elif issubclass(model_class, DistilBertModel):
+            return token_classifier_with_optional_mapping_factory(
+                DistilBertForTokenClassification,
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
         else:
             raise Exception(
-                f"AutoModelForRealignmentAndTokenClassification.from_pretrained is not compatible with model of class `{model_class}` (path: {path})"
+                f"CustomAutoModelForTokenClassification.from_pretrained is not compatible with model of class `{model_class}` (path: {path})"
             )

@@ -1,12 +1,19 @@
 from typing import Optional, Union, Tuple
 import torch
-from transformers import BertForSequenceClassification, RobertaForSequenceClassification
+from transformers import (
+    BertForSequenceClassification,
+    RobertaForSequenceClassification,
+    DistilBertForSequenceClassification,
+    BertModel,
+    RobertaModel,
+    DistilBertModel,
+)
 from transformers.modeling_outputs import SequenceClassifierOutput
 
 from multilingual_eval.models.modified_transformers.bert_model import (
-    BertModelWithOptionalMapping,
     encoder_with_optional_mapping_factory,
 )
+from multilingual_eval.models.modified_transformers.utils import get_class_from_model_path
 
 
 def sequence_classifier_with_optional_mapping_factory(BaseClass, classifier_getter=None):
@@ -139,15 +146,31 @@ def roberta_sequence_classifier_getter(model: RobertaForSequenceClassification):
     return classifier
 
 
+def distilbert_sequence_classifier_getter(model: DistilBertForSequenceClassification):
+    def classifier(outputs):
+        hidden_state = outputs[0]  # (bs, seq_len, dim)
+        pooled_output = hidden_state[:, 0]  # (bs, dim)
+        pooled_output = model.pre_classifier(pooled_output)  # (bs, dim)
+        pooled_output = torch.nn.ReLU()(pooled_output)  # (bs, dim)
+        pooled_output = model.dropout(pooled_output)  # (bs, dim)
+        logits = model.classifier(pooled_output)  # (bs, num_labels)
+        return logits
+
+    return classifier
+
+
 CustomBertForSequenceClassification = sequence_classifier_with_optional_mapping_factory(
     BertForSequenceClassification
 )
 CustomRobertaForSequenceClassification = sequence_classifier_with_optional_mapping_factory(
     RobertaForSequenceClassification, classifier_getter=roberta_sequence_classifier_getter
 )
+CustomDistilBertForSequenceClassification = sequence_classifier_with_optional_mapping_factory(
+    DistilBertForSequenceClassification, classifier_getter=distilbert_sequence_classifier_getter
+)
 
 
-class AutoModelForRealignmentAndSequenceClassification:
+class CustomAutoModelForSequenceClassification:
     @classmethod
     def from_pretrained(cls, path: str, *args, cache_dir=None, **kwargs):
         model_class = get_class_from_model_path(path, cache_dir=cache_dir)
@@ -161,7 +184,12 @@ class AutoModelForRealignmentAndSequenceClassification:
                 RobertaForSequenceClassification,
                 classifier_getter=roberta_sequence_classifier_getter,
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        elif issubclass(model_class, DistilBertModel):
+            return sequence_classifier_with_optional_mapping_factory(
+                DistilBertForSequenceClassification,
+                classifier_getter=distilbert_sequence_classifier_getter,
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
         else:
             raise Exception(
-                f"AutoModelForRealignmentAndSequenceClassification.from_pretrained is not compatible with model of class `{model_class}` (path: {path})"
+                f"CustomAutoModelForSequenceClassification.from_pretrained is not compatible with model of class `{model_class}` (path: {path})"
             )
