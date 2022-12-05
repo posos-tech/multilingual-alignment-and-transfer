@@ -86,3 +86,8 @@ Then launch the script to reproduce the results which will be found in `reproduc
 ### scripts/23_realignment_for_xnli.py
 
 - [ ] hf252z4e (unfinished - to resume): XNLI XLM-R Large
+
+### scripts/35_alignment_and_finetuning.py
+
+- [ ] 9sgleu36 (running): default arguments
+- [ ] 4ojw23c4 (running): XLM-R Large
