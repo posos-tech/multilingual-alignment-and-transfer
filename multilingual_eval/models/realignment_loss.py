@@ -80,16 +80,24 @@ def compute_realignment_loss(
         left_output = encoder(
             left_input_ids,
             attention_mask=left_attention_mask,
-            token_type_ids=left_token_type_ids,
-            position_ids=left_position_ids,
             head_mask=left_head_mask,
             inputs_embeds=left_inputs_embeds,
             output_attentions=False,
             output_hidden_states=True,
             return_dict=True,
-            lang_id=left_lang_id,
-            train_only_mapping=train_only_mapping
-            and not no_backward_for_source,  # don't want nested torch.no_grad
+            **(
+                {"token_type_ids": left_token_type_ids} if left_token_type_ids is not None else {}
+            ),  # This is because of distilbert
+            **({"position_ids": left_position_ids} if left_position_ids is not None else {}),
+            **(
+                {
+                    "lang_id": left_lang_id,
+                    "train_only_mapping": train_only_mapping
+                    and not no_backward_for_source,  # don't want nested torch.no_grad
+                }
+                if left_lang_id is not None or right_lang_id is not None
+                else {}
+            ),
         )
 
         left_hidden_states = left_output.hidden_states
@@ -98,14 +106,18 @@ def compute_realignment_loss(
         initial_output = initial_model(
             left_input_ids,
             attention_mask=left_attention_mask,
-            token_type_ids=left_token_type_ids,
-            position_ids=left_position_ids,
             head_mask=left_head_mask,
             inputs_embeds=left_inputs_embeds,
             output_attentions=False,
             output_hidden_states=True,
             return_dict=True,
-            train_only_mapping=train_only_mapping,
+            **({"token_type_ids": left_token_type_ids} if left_token_type_ids is not None else {}),
+            **({"position_ids": left_position_ids} if left_position_ids is not None else {}),
+            **(
+                {"lang_id": left_lang_id, "train_only_mapping": train_only_mapping}
+                if left_lang_id is not None or right_lang_id is not None
+                else {}
+            ),
         )
 
         initial_hidden_states = initial_output.hidden_states
@@ -113,14 +125,18 @@ def compute_realignment_loss(
     right_output = encoder(
         right_input_ids,
         attention_mask=right_attention_mask,
-        token_type_ids=right_token_type_ids,
-        position_ids=right_position_ids,
         head_mask=right_head_mask,
         inputs_embeds=right_inputs_embeds,
         output_attentions=False,
         output_hidden_states=True,
         return_dict=True,
-        lang_id=right_lang_id,
+        **({"token_type_ids": right_token_type_ids} if right_token_type_ids is not None else {}),
+        **({"position_ids": right_position_ids} if right_position_ids is not None else {}),
+        **(
+            {"lang_id": right_lang_id, "train_only_mapping": train_only_mapping}
+            if left_lang_id is not None or right_lang_id is not None
+            else {}
+        ),
     )
 
     right_hidden_states = right_output.hidden_states

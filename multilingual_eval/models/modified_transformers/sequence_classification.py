@@ -38,13 +38,14 @@ def sequence_classifier_with_optional_mapping_factory(BaseClass, classifier_gett
 
             encoder_class = getattr(self, BaseClass.base_model_prefix).__class__
 
-            setattr(
-                self,
-                BaseClass.base_model_prefix,
-                encoder_with_optional_mapping_factory(encoder_class)(
-                    config, add_pooling_layer=True, with_mapping=with_mapping, nb_pairs=nb_pairs
-                ),
-            )
+            if with_mapping:
+                setattr(
+                    self,
+                    BaseClass.base_model_prefix,
+                    encoder_with_optional_mapping_factory(encoder_class)(
+                        config, add_pooling_layer=True, with_mapping=with_mapping, nb_pairs=nb_pairs
+                    ),
+                )
 
             self.post_init()
 
@@ -80,15 +81,20 @@ def sequence_classifier_with_optional_mapping_factory(BaseClass, classifier_gett
             outputs = getattr(self, BaseClass.base_model_prefix)(
                 input_ids,
                 attention_mask=attention_mask,
-                token_type_ids=token_type_ids,
-                position_ids=position_ids,
                 head_mask=head_mask,
                 inputs_embeds=inputs_embeds,
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
-                lang_id=lang_id,  # Had to rewrite the forward method because of this line
-                train_only_mapping=train_only_mapping,
+                **(
+                    {"token_type_ids": token_type_ids} if token_type_ids is not None else {}
+                ),  # This is because of distilbert
+                **({"position_ids": position_ids} if position_ids is not None else {}),
+                **(
+                    {"lang_id": lang_id, "train_only_mapping": train_only_mapping}
+                    if self.with_mapping
+                    else {}
+                ),  # Had to rewrite the forward method because of this line
             )
 
             if self.classifier_getter is None:

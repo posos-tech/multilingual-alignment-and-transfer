@@ -17,6 +17,11 @@ def encoder_with_optional_mapping_factory(BaseClass):
     It takes as argument an encoder class like BertModel or RobertaModel
     """
 
+    if not issubclass(BaseClass, (BertModel, RobertaModel)):
+        raise NotImplementedError(
+            f"encoder_with_optional_mapping_factory only works with BertModel or RobertaModel, got {BaseClass.__name__}"
+        )
+
     class CustomEncoder(BaseClass):
         """
         Custom encoder class which includes an optional mapping or realignment,
