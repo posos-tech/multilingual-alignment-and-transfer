@@ -91,3 +91,7 @@ Then launch the script to reproduce the results which will be found in `reproduc
 
 - [ ] 9sgleu36 (running): default arguments
 - [ ] 4ojw23c4 (running): XLM-R Large
+
+### scripts/39_controlled_realignment.py
+
+- [ ] wv9nqvdr (running): default arguments
