@@ -36,23 +36,25 @@ def evaluate_alignment(
         collate_fn=RealignmentCollator(tokenizer),
     )
 
-    left_embs = np.zeros((len(layers), nb_pairs, n_dim))
-    right_embs = np.zeros((len(layers), nb_pairs, n_dim))
+    left_embs = torch.zeros((len(layers), nb_pairs, n_dim))
+    right_embs = torch.zeros((len(layers), nb_pairs, n_dim))
 
     alignment_found = 0
 
     for batch in dataloader:
-        left_batch = {k.lstrip("left_"): v for k, v in batch.items() if k.startswith("left_")}
-        right_batch = {k.lstrip("right_"): v for k, v in batch.items() if k.startswith("right_")}
+        left_batch = {k.split("_", 1)[1]: v for k, v in batch.items() if k.startswith("left_")}
+        right_batch = {k.split("_", 1)[1]: v for k, v in batch.items() if k.startswith("right_")}
 
-        left_batch = bring_batch_to_model(model)
+        left_batch = bring_batch_to_model(left_batch, model)
         left_output = model(**left_batch, output_hidden_states=True).hidden_states
-        right_batch = bring_batch_to_model(model)
+        right_batch = bring_batch_to_model(right_batch, model)
         right_output = model(**right_batch, output_hidden_states=True).hidden_states
 
-        end = max(alignment_found + aligned_left_repr.shape[0], left_embs.shape[1])
+        end = min(alignment_found + np.sum(batch["alignment_nb"].numpy()), left_embs.shape[1])
 
         for i, layer in enumerate(layers):
+
+
             left_reprs = left_output[layer]
             right_reprs = right_output[layer]
         
@@ -65,34 +67,43 @@ def evaluate_alignment(
             )
 
             aligned_left_repr = (
-                remove_batch_dimension(aligned_left_repr, batch["alignment_nb"]).detach().cpu().numpy()
+                remove_batch_dimension(aligned_left_repr, batch["alignment_nb"]).detach().cpu()
             )
             aligned_right_repr = (
-                remove_batch_dimension(aligned_right_repr, batch["alignment_nb"]).detach().cpu().numpy()
+                remove_batch_dimension(aligned_right_repr, batch["alignment_nb"]).detach().cpu()
             )
 
+            
         
             left_embs[i,alignment_found:end] = aligned_left_repr[: end - alignment_found]
             right_embs[i,alignment_found:end] = aligned_right_repr[: end - alignment_found]
 
         alignment_found = end
 
-        if alignment_found == left_embs.shape[0]:
+        if alignment_found==left_embs.shape[1]:
             break
 
     if model_back_to_cpu:
         model = model.cpu()
 
-    scores = []
+    scores_fwd = []
+    scores_bwd = []
     for i in range(len(layers)):
-        scores.append(evaluate_alignment_with_cosim(
+        scores_fwd.append(evaluate_alignment_with_cosim(
             left_embs[i],
             right_embs[i],
             device=device_for_search,
             csls_k=csls_k,
             strong_alignment=1.0 if strong_alignment else 0.0,
         ))
-    return scores
+        scores_bwd.append(evaluate_alignment_with_cosim(
+            right_embs[i],
+            left_embs[i],
+            device=device_for_search,
+            csls_k=csls_k,
+            strong_alignment=1.0 if strong_alignment else 0.0,
+        ))
+    return scores_fwd, scores_bwd
 
 
 def evaluate_alignment_for_pairs(
@@ -112,13 +123,14 @@ def evaluate_alignment_for_pairs(
     split="train",
     layers=None,
 ):
-    scores = []
+    scores_fwd = []
+    scores_bwd = []
     device_before = model.device
     for left_lang, right_lang in lang_pairs:
 
         dataset = get_realignment_dataset_for_one_pair(
             tokenizer,
-            os.path.join(translation_path, f"{left_lang}-{right_lang}.{split}"),
+            os.path.join(translation_path, f"{left_lang}-{right_lang}.tokenized.{split}.txt"),
             os.path.join(alignment_path, f"{left_lang}-{right_lang}.{split}"),
             max_length=max_length,
             seed=seed,
@@ -126,8 +138,7 @@ def evaluate_alignment_for_pairs(
             right_id=None,
         )
 
-        scores.append(
-            evaluate_alignment(
+        fwd, bwd = evaluate_alignment(
                 tokenizer,
                 model,
                 dataset,
@@ -139,10 +150,12 @@ def evaluate_alignment_for_pairs(
                 strong_alignment=strong_alignment,
                 layers=layers,
             )
-        )
+
+        scores_fwd.append(fwd)
+        scores_bwd.append(bwd)
 
         if model_back_to_cpu:
             model = model.to(device_before)
 
-    return scores
+    return scores_fwd, scores_bwd
 
