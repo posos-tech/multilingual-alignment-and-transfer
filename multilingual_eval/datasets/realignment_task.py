@@ -5,6 +5,8 @@ from typing import List, Tuple, Optional, Dict
 import os
 from collections import defaultdict
 
+from multilingual_eval.datasets.data_utils import TorchCompatibleIterableDataset
+
 
 def get_pharaoh_dataset(
     translation_file: str,
@@ -20,10 +22,10 @@ def get_pharaoh_dataset(
                 if len(parts) != 2:
                     continue
                 left_sent, right_sent = parts
-                left_tokens = left_sent.strip().split(" ")
-                right_tokens = right_sent.strip().split(" ")
+                left_tokens = left_sent.strip().split()
+                right_tokens = right_sent.strip().split()
 
-                pairs = alignment.strip().split(" ")
+                pairs = alignment.strip().split()
                 pairs = list(map(lambda x: tuple(map(int, x.split("-"))), pairs))
 
                 left_positions = list(map(lambda x: x[0], pairs))
@@ -287,7 +289,7 @@ def get_multilingual_realignment_dataset(
     datasets = [
         get_realignment_dataset_for_one_pair(
             tokenizer,
-            os.path.join(translation_path, f"{left_lang}-{right_lang}.{split}"),
+            os.path.join(translation_path, f"{left_lang}-{right_lang}.tokenized.{split}.txt"),
             os.path.join(alignment_path, f"{left_lang}-{right_lang}.{split}"),
             max_length=max_length,
             seed=seed,
@@ -297,5 +299,4 @@ def get_multilingual_realignment_dataset(
         for left_lang, right_lang in pairs
     ]
 
-    return interleave_datasets(datasets)
-
+    return TorchCompatibleIterableDataset(interleave_datasets(datasets))
