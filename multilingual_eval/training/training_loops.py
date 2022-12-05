@@ -178,9 +178,11 @@ def realignment_training_loop(
 
             cache_path = os.path.join(cache_dir, model_hash)
             training_state_path = os.path.join(cache_dir, f"{model_hash}.json")
+            info_path = os.path.join(cache_dir, f"{model_hash}.info")
         else:
             cache_path = None
             training_state_path = None
+            info_path = None
 
         # Note: if this line is modified, hashing args for caching must be checked
         before_optimizer = Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
@@ -227,6 +229,9 @@ def realignment_training_loop(
 
                 with open(training_state_path, "w") as f:
                     json.dump(dataclasses.asdict(training_state), f)
+
+                with open(info_path, "w") as f:
+                    f.write(hash_args + "\n")
 
     optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
     scheduler = get_scheduler(
