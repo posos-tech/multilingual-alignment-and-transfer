@@ -89,9 +89,11 @@ Then launch the script to reproduce the results which will be found in `reproduc
 
 ### scripts/35_alignment_and_finetuning.py
 
-- [ ] 9sgleu36 (running): default arguments
-- [ ] 4ojw23c4 (running): XLM-R Large
+- [ ] 9sgleu36 (running): default arguments, using dico for evaluation (3914150, 3914152, 3914153)
+- [ ] 0wur16h1 (running): default arguments, using awesome for evaluation (3914171, 3914172, 3914173)
+- [ ] ee56xrc8 (running): default arguments, using fastalign for evaluation (3914174, 3914190, 3914192)
+- [ ] 4ojw23c4 (running): XLM-R Large, using dico for evaluation (3914146, )
 
 ### scripts/39_controlled_realignment.py
 
-- [ ] wv9nqvdr (running): default arguments
+- [ ] wv9nqvdr (running): default arguments (3914166, 3914167, 3914182, 3914183, 3914184, 3914185, 3914187)
