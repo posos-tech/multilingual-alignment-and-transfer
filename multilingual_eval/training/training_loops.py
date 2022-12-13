@@ -48,6 +48,8 @@ def realignment_training_loop(
     realignment_step_callbacks=None,
     hash_args=None,
     cache_dir=None,
+    return_model_hash=False,
+    final_prefix="final",
 ):
     """
     Performs a training loop, with or without realignment
@@ -78,6 +80,7 @@ def realignment_training_loop(
     - hash_args: default None, optional string to add to hashing realigned models (only with before strategy), will cache only if it is provided (ideally with model name, id for realignment dataset and commit hash)
         and if cache_dir is provided
     - cache_dir: default None, optional directory for caching models
+    - return_model_hash: default False, whether to return the model hash for model saved after realignment (not fine-tuning !!!) useful only if hash_args and cache_dir are specified and if strategy == "before"
     """
     data_collator = data_collator or DataCollatorForTokenClassification(tokenizer)
     epoch_callbacks = epoch_callbacks or []
@@ -148,6 +151,8 @@ def realignment_training_loop(
             batch_size=task_batch_size,
             collate_fn=data_collator,
         )
+
+    use_caching = False
 
     # If strategy is "before" or "before+during", perform realignment before fine-tuning
     if strategy in ["before", "before+during"]:
@@ -324,7 +329,7 @@ def realignment_training_loop(
             evaluation_datasets,
             batch_size=task_batch_size,
             prefixes=evaluation_prefixes,
-            overall_prefix="final_eval",
+            overall_prefix=f"{final_prefix}_eval",
             metric_fn=metric_fn,
             collator=data_collator,
         )
@@ -335,9 +340,12 @@ def realignment_training_loop(
         res = evaluate_token_classification(
             model,
             same_language_evaluation_dataloader,
-            prefix="final_eval_same",
+            prefix=f"{final_prefix}_eval_same",
             metric_fn=metric_fn,
         )
         logging.info(res)
         if log_in_wandb:
             wandb.log(res)
+
+    if return_model_hash and use_caching:
+        return model_hash
