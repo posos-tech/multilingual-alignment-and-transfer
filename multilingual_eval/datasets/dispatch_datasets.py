@@ -20,7 +20,7 @@ from multilingual_eval.models.with_realignment_factory import (
 def get_dataset_fn(name, zh_segmenter=None):
     return {
         "wikiann": lambda *args, **kwargs: get_wikiann_ner(
-            *args, **kwargs, zh_segmenter=zh_segmenter
+            *args, **kwargs, zh_segmenter=zh_segmenter, resegment_zh=zh_segmenter is not None
         ),
         "udpos": get_wuetal_udpos,
         "xnli": get_xnli,
