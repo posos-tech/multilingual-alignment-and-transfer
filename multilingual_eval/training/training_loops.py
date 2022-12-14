@@ -50,6 +50,7 @@ def realignment_training_loop(
     cache_dir=None,
     return_model_hash=False,
     final_prefix="final",
+    pretrained_model_fn=None,
 ):
     """
     Performs a training loop, with or without realignment
@@ -205,7 +206,11 @@ def realignment_training_loop(
 
         if found_caching:
             logging.info(f"Loading cached model: {model_hash}")
-            model = model.__class__.from_pretrained(cache_path)
+            model = (
+                pretrained_model_fn(cache_path, ignore_mismatched_sizes=True)
+                if pretrained_model_fn is not None
+                else model.__class__.from_pretrained(cache_path, ignore_mismatched_sizes=True)
+            )
         else:
 
             training_state = epoch_loop(
