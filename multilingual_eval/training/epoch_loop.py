@@ -14,12 +14,14 @@ def epoch_loop(
     task_dataloader=None,
     realignment_dataloader=None,
     task_accumulation_steps=1,
+    realignment_steps_by_finetuning=1,
     logging_steps=100,
     log_in_wandb=False,
     nb_iter=None,
     realignment_coef=1.0,
     realignment_step_callbacks=None,
     training_state: Optional[TrainingState] = None,
+    log_first_sample=False,
 ):
     """
     Function to perform an epoch of training, with specific task samples and/or realignment task samples
@@ -76,28 +78,29 @@ def epoch_loop(
             realignment_loss = 0
 
             if realignment_dataloader is not None:
-                realignment_iterator, realignment_batch, restarted = get_next_or_restart(
-                    realignment_dataloader, realignment_iterator
-                )
+                for _ in range(realignment_steps_by_finetuning):
+                    realignment_iterator, realignment_batch, restarted = get_next_or_restart(
+                        realignment_dataloader, realignment_iterator
+                    )
 
-                if training_state is not None:
-                    training_state.has_restarted = training_state.has_restarted or restarted
+                    if training_state is not None:
+                        training_state.has_restarted = training_state.has_restarted or restarted
 
-                    if not training_state.has_restarted:
-                        training_state.nb_realignment_samples_seen_before_restart += (
-                            realignment_batch["left_input_ids"].shape[0]
-                        )
+                        if not training_state.has_restarted:
+                            training_state.nb_realignment_samples_seen_before_restart += (
+                                realignment_batch["left_input_ids"].shape[0]
+                            )
 
-                    training_state.nb_realignment_samples_seen += realignment_batch[
-                        "left_input_ids"
-                    ].shape[0]
-                    training_state.nb_realignment_steps_seen += 1
+                        training_state.nb_realignment_samples_seen += realignment_batch[
+                            "left_input_ids"
+                        ].shape[0]
+                        training_state.nb_realignment_steps_seen += 1
 
-                realignment_batch = bring_batch_to_model(realignment_batch, model)
-
-                realignment_loss = (
-                    realignment_coef * model(**realignment_batch, return_dict=True).loss
-                )
+                    realignment_batch = bring_batch_to_model(realignment_batch, model)
+                    outputs = model(**realignment_batch, return_dict=True)
+                    realignment_loss += (
+                        realignment_coef / realignment_steps_by_finetuning
+                    ) * outputs.loss
 
         if batch is not None:
 

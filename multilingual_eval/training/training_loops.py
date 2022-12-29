@@ -35,6 +35,7 @@ def realignment_training_loop(
     task_batch_size=4,
     nb_realignment_steps_before=None,
     realignment_batch_size=2,
+    learning_rate=2e-5,
     n_epochs=10,
     accumulation_steps=1,
     logging_steps=100,
@@ -51,6 +52,7 @@ def realignment_training_loop(
     return_model_hash=False,
     final_prefix="final",
     pretrained_model_fn=None,
+    realignment_steps_by_finetuning=1,
 ):
     """
     Performs a training loop, with or without realignment
@@ -159,7 +161,7 @@ def realignment_training_loop(
     if strategy in ["before", "before+during"]:
         use_caching = cache_dir is not None and hash_args is not None and seed is not None
 
-        learning_rate = 2e-5
+        learning_rate = learning_rate
 
         realignment_steps_before = (
             math.ceil(len(task_dataloader) / accumulation_steps) * n_epochs
@@ -224,6 +226,8 @@ def realignment_training_loop(
                 nb_iter=realignment_steps_before,
                 realignment_step_callbacks=realignment_step_callbacks,
                 training_state=training_state,
+                log_first_sample=True,
+                realignment_steps_by_finetuning=realignment_steps_by_finetuning,
             )
 
             res = training_state.log_state()
@@ -243,7 +247,7 @@ def realignment_training_loop(
                 with open(info_path, "w") as f:
                     f.write(hash_args + "\n")
 
-    optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
+    optimizer = Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
     scheduler = get_scheduler(
         "linear",
         optimizer,
@@ -272,6 +276,8 @@ def realignment_training_loop(
             else realignment_coef_scheduler(i),
             realignment_step_callbacks=realignment_step_callbacks,
             training_state=training_state,
+            log_first_sample=i == 0,
+            realignment_steps_by_finetuning=realignment_steps_by_finetuning,
         )
         for callback in epoch_callbacks:
             callback(model)
@@ -303,7 +309,7 @@ def realignment_training_loop(
                 wandb.log(res)
 
     if strategy == "after":
-        after_optimizer = Adam(model.parameters(), lr=2e-5, betas=(0.9, 0.999), eps=1e-8)
+        after_optimizer = Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
 
         training_state = epoch_loop(
             model,
@@ -320,6 +326,7 @@ def realignment_training_loop(
             ),
             realignment_step_callbacks=realignment_step_callbacks,
             training_state=training_state,
+            realignment_steps_by_finetuning=realignment_steps_by_finetuning,
         )
         res = training_state.log_state()
         if log_in_wandb:
