@@ -93,6 +93,13 @@ Then launch the script to reproduce the results which will be found in `reproduc
 - [ ] 0wur16h1 (running): default arguments, using awesome for evaluation (3917410, 3917412)
 - [ ] ee56xrc8 (running): default arguments, using fastalign for evaluation (3914174, 3914190, 3914192, 3914333)
 - [ ] 4ojw23c4 (running): XLM-R Large, using dico for evaluation (3914146, )
+- [ ] b3wy6s35: mBERT POS dico, opus 100, with fixed seed for evaluation pairs (weak alignment)
+- [ ] 150qtly2: mBERT POS dico, multi_un, with fixed seed for evaluation pairs (strong alignment)
+
+- [ ] cup26kx4: dico, multi_un, weak
+- [ ] y7tdg2ip: dico, multi_un, strong
+- [ ] 6gio1hio: awesome, multi_un, strong
+- [ ] q3g338te: awesome, multi_un, weak
 
 ### scripts/39_controlled_realignment.py
 
@@ -100,6 +107,9 @@ Then launch the script to reproduce the results which will be found in `reproduc
 - [x] ffapa75h (running): wikiann only with right segmenter
 - [ ] lsa4k936: wikiann with multi_un
 - [ ] lazzd5fz: udpos with multi_un (and right seed for comparison)
+- [ ] yti4fcgs: wikiann udpos opus100 with right seed ans all
+- [ ] enr6imp2: same but XLM-R Large baseline only 
+- [ ] s61247p2: wikiann udpos multi_un with right seed ans all
 
 ## 40
 
