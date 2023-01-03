@@ -6,7 +6,11 @@ import logging
 
 from transformers.models.bert.modeling_bert import BertPreTrainedModel
 from transformers.file_utils import ModelOutput
-from transformers.modeling_outputs import TokenClassifierOutput, SequenceClassifierOutput
+from transformers.modeling_outputs import (
+    TokenClassifierOutput,
+    SequenceClassifierOutput,
+    QuestionAnsweringModelOutput,
+)
 from transformers import (
     BertModel,
     RobertaModel,
@@ -23,6 +27,11 @@ from multilingual_eval.models.modified_transformers.sequence_classification impo
     CustomBertForSequenceClassification,
     CustomRobertaForSequenceClassification,
     CustomDistilBertForSequenceClassification,
+)
+from multilingual_eval.models.modified_transformers.question_answering import (
+    CustomBertForQuestionAnswering,
+    CustomRobertaForQuestionAnswering,
+    CustomDistilBertForQuestionAnswering,
 )
 
 from multilingual_eval.models.realignment_loss import compute_realignment_loss
@@ -302,4 +311,27 @@ class AutoModelForTokenClassificationWithRealignment:
         else:
             raise Exception(
                 f"AutoModelForTokenClassificationWithRealignment.from_pretrained is not compatible with model of class `{model_class}` (path: {path})"
+            )
+
+
+class AutoModelForQuestionAnsweringWithRealignment:
+    @classmethod
+    def from_pretrained(cls, path: str, *args, cache_dir=None, **kwargs):
+        model_class = get_class_from_model_path(path, cache_dir=cache_dir)
+
+        if issubclass(model_class, BertModel):
+            return model_with_realignment_factory(
+                CustomBertForQuestionAnswering, QuestionAnsweringModelOutput
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        elif issubclass(model_class, RobertaModel):
+            return model_with_realignment_factory(
+                CustomRobertaForQuestionAnswering, QuestionAnsweringModelOutput
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        elif issubclass(model_class, DistilBertModel):
+            return model_with_realignment_factory(
+                CustomDistilBertForQuestionAnswering, QuestionAnsweringModelOutput
+            ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
+        else:
+            raise Exception(
+                f"AutoModelForQuestionAnsweringWithRealignment.from_pretrained is not compatible with model of class `{model_class}` (path: {path})"
             )
