@@ -104,7 +104,11 @@ def get_pawsx(
 
 
 def pawsx_metric_fn(p):
-    predictions, labels = p
+    if isinstance(p, dict):
+        predictions = p["logits"]
+        labels = p["labels"]
+    else:
+        predictions, labels = p
     predictions = np.argmax(predictions, axis=-1)
 
     return {"accuracy": np.count_nonzero(predictions == labels) / predictions.shape[0]}

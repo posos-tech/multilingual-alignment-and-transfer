@@ -11,7 +11,7 @@ from multilingual_eval.datasets.data_utils import TorchCompatibleIterableDataset
 def get_pharaoh_dataset(
     translation_file: str,
     alignment_file: str,
-    repeat=True,
+    repeat=False,
     keep_only_one_to_one=True,
     ignore_identical=True,
 ):
@@ -284,6 +284,7 @@ def get_multilingual_realignment_dataset(
     seed=None,
     lang_to_id: Optional[Dict[str, int]] = None,
     split="train",
+    return_torch_compatible=True,
 ):
     lang_to_id = lang_to_id or defaultdict(lambda: None)
     datasets = [
@@ -299,4 +300,9 @@ def get_multilingual_realignment_dataset(
         for left_lang, right_lang in pairs
     ]
 
-    return TorchCompatibleIterableDataset(interleave_datasets(datasets))
+    dataset = interleave_datasets(datasets)
+
+    if return_torch_compatible:
+        dataset = TorchCompatibleIterableDataset(dataset)
+
+    return dataset

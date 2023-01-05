@@ -167,7 +167,11 @@ def get_token_classification_metrics():
     """
 
     def compute_metrics(p):
-        predictions, labels = p
+        if isinstance(p, dict):
+            predictions = p["logits"]
+            labels = p["labels"]
+        else:
+            predictions, labels = p
         predictions = np.argmax(predictions, axis=2)
 
         # Remove ignored index (special tokens)

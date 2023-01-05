@@ -3,6 +3,10 @@ import torch
 import logging
 import math
 from typing import Optional
+import random
+import numpy as np
+from transformers.optimization import get_scheduler
+
 from multilingual_eval.training.utils import bring_batch_to_model, get_next_or_restart
 from multilingual_eval.training.states import TrainingState
 
@@ -154,3 +158,90 @@ def epoch_loop(
                     )
 
     return training_state
+
+
+def fine_tuning_loop(
+    model,
+    dataset,
+    data_collator,
+    task_name: str,
+    batch_size=32,
+    accumulation_steps=1,
+    seed=None,
+    steps=2_000,
+    learning_rate=2e-5,
+):
+    model.train()
+    # Fix random seed for Pytorch and numpy
+    if seed is not None:
+        g = torch.Generator()
+        g.manual_seed(seed)
+
+        def seed_worker(worker_id):
+            worker_seed = torch.initial_seed() % 2**32
+            np.random.seed(worker_seed)
+            random.seed(worker_seed)
+
+    else:
+        g = None
+        seed_worker = None
+
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        shuffle=True,
+        batch_size=batch_size,
+        worker_init_fn=seed_worker,
+        generator=g,
+        collate_fn=data_collator,
+    )
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
+    scheduler = get_scheduler(
+        "linear",
+        optimizer,
+        num_warmup_steps=int(0.1 * steps),
+        num_training_steps=steps,
+    )
+    iterator = iter(dataloader)
+
+    n_epochs = 0
+
+    for i in range(steps):
+
+        loss = 0
+        optimizer.zero_grad()
+
+        for j in range(accumulation_steps):
+
+            iterator, batch, restarted = get_next_or_restart(dataloader, iterator, name=task_name)
+
+            if restarted:
+                n_epochs += 1
+
+            batch = bring_batch_to_model(batch, model)
+            outputs = model(**batch)
+            loss += outputs["loss"] if isinstance(outputs, dict) else outputs[0]
+
+        loss.backward()
+        optimizer.step()
+        scheduler.step()
+
+
+def realignment_epoch(
+    model, iterator, dataloader, optimizer, scheduler=None, batch_size=16, steps=2_000
+):
+    model.train()
+    for i in range(steps):
+        optimizer.zero_grad()
+
+        iterator, batch, restarted = get_next_or_restart(dataloader, iterator, "realignment")
+
+        batch = bring_batch_to_model(batch, model)
+        outputs = model(**batch, return_dict=True)
+        loss = outputs.loss
+
+        loss.backward()
+
+        optimizer.step()
+        if scheduler is not None:
+            scheduler.step()

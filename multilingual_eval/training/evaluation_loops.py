@@ -9,6 +9,43 @@ from transformers.trainer_pt_utils import nested_concat
 from multilingual_eval.datasets.token_classification import get_token_classification_metrics
 
 
+def evaluate_any_task(
+    model,
+    eval_dataloader,
+    metric_fn,
+    prefix="eval",
+    remove_from_input=None,
+    keep_in_input=None,
+    keep_in_output=None,
+    padding_index=-100,
+):
+    remove_from_input = remove_from_input or []
+    keep_in_input = keep_in_input or ["labels"]
+    keep_in_output = keep_in_output or ["logits"]
+
+    model.eval()
+
+    all_results = {key: None for key in keep_in_input + keep_in_output}
+    for i, batch in enumerate(eval_dataloader):
+        results = {key: batch[key].numpy() for key in keep_in_input}
+        for key in remove_from_input:
+            del batch[key]
+        batch = bring_batch_to_model(batch, model)
+
+        outputs = model(**batch, return_dict=True)
+
+        results.update({key: outputs[key].detach().cpu().numpy() for key in keep_in_output})
+
+        all_results = {
+            key: results[key]
+            if val is None
+            else nested_concat(val, results[key], padding_index=padding_index)
+            for key, val in all_results.items()
+        }
+
+    return prefix_dictionary(metric_fn(all_results), prefix)
+
+
 def evaluate_token_classification(model, eval_dataloader, prefix="eval", metric_fn=None):
     """
     Evaluates a model on a given dataloader
