@@ -67,57 +67,25 @@ Then launch the script to reproduce the results which will be found in `reproduc
 
 ## Inventory of the runs on wandb
 
-### scripts/21_realignment_for_pos.py
-
-- [x] s4f3ngqk (finished): grid search mBERT
-- [x] wy9tsfd9 (finished): grid-search XLM-R base
-- [x] b452skly (finished): XLM-R Large baseline
-- [x] i17jod5q (finished): mBERT baseline
-- [x] 46egpf24 (finished): XLM-R Base baseline
-
-### scripts/22_realignment_for_ner.py
-
-- [x] ta7mva4z (finished): NER XLM-R Large baseline
-- [x] kdybfi7l (finished): NER mBERT baseline
-- [x] 7wjim0zy (finished): NER XLM-R Base baseline
-- [x] 0tl6jkpq (finished): NER mBERT Base grid-search
-- [x] ixp38wf8 (finished): NER XLM-R Base grid-search
-
-### scripts/23_realignment_for_xnli.py
-
-- [ ] hf252z4e (unfinished - to resume): XNLI XLM-R Large
-
 ### scripts/35_alignment_and_finetuning.py
 
-- [ ] 9sgleu36 (running): default arguments, using dico for evaluation (3917417, 3917418)
-- [ ] 0wur16h1 (running): default arguments, using awesome for evaluation (3917410, 3917412)
-- [ ] ee56xrc8 (running): default arguments, using fastalign for evaluation (3914174, 3914190, 3914192, 3914333)
-- [ ] 4ojw23c4 (running): XLM-R Large, using dico for evaluation (3914146, )
-- [ ] b3wy6s35: mBERT POS dico, opus 100, with fixed seed for evaluation pairs (weak alignment)
-- [ ] 150qtly2: mBERT POS dico, multi_un, with fixed seed for evaluation pairs (strong alignment)
+trials used in the paper:
 
-- [ ] cup26kx4: dico, multi_un, weak
-- [ ] y7tdg2ip: dico, multi_un, strong
-- [ ] 6gio1hio: awesome, multi_un, strong
-- [ ] q3g338te: awesome, multi_un, weak
+- 3o0n5omt: strong alignment
+- nmh4qvs7: weak alignment
 
 ### scripts/39_controlled_realignment.py
 
-- [ ] wv9nqvdr (running): default arguments (3914166, 3914167, 3914182, 3914183, 3914184, 3914185, 3914187)
-- [x] ffapa75h (running): wikiann only with right segmenter
-- [ ] lsa4k936: wikiann with multi_un
-- [ ] lazzd5fz: udpos with multi_un (and right seed for comparison)
-- [ ] yti4fcgs: wikiann udpos opus100 with right seed ans all
-- [ ] enr6imp2: same but XLM-R Large baseline only 
-- [ ] s61247p2: wikiann udpos multi_un with right seed ans all
+trials used in the paper with opus-100
 
-## 40
+- yti4fcgs
+- enr6imp2
+- 8805enss
+- 6dz1q76d
+- e5jsc3h6
+- rugygler
 
-- [ ] g63zijyv: default
+Trials used in the paper with Multi-UN
 
-## 41
+- s61247p2
 
-- [x] q2nfwsbq: default, (fr, es-ru, zh-ar)
-- [ ] 6i44v90m: wikiann only (af, nl, fr es ru ar zh)
-- [ ] 8mzowa8e: --tasks wikiann --right_lang lv --close_langs lt --distant_langs fr es nl ar zh
-- [ ] 0sou68wb: xtreme.udpos --right_lang af --close_langs nl --distant_langs ru ar zh
