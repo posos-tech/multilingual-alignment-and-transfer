@@ -18,7 +18,6 @@ def evaluate_alignment(
     batch_size=4,
     model_back_to_cpu=False,
     device_for_search="cpu:0",
-    csls_k=10,
     strong_alignment=False,
     layers=None,
 ):
@@ -54,16 +53,18 @@ def evaluate_alignment(
 
         for i, layer in enumerate(layers):
 
-
             left_reprs = left_output[layer]
             right_reprs = right_output[layer]
-        
 
             aligned_left_repr = sum_ranges_and_put_together(
-                left_reprs, batch["alignment_left_positions"], ids=batch["alignment_left_ids"],
+                left_reprs,
+                batch["alignment_left_positions"],
+                ids=batch["alignment_left_ids"],
             )
             aligned_right_repr = sum_ranges_and_put_together(
-                right_reprs, batch["alignment_right_positions"], ids=batch["alignment_right_ids"],
+                right_reprs,
+                batch["alignment_right_positions"],
+                ids=batch["alignment_right_ids"],
             )
 
             aligned_left_repr = (
@@ -73,14 +74,12 @@ def evaluate_alignment(
                 remove_batch_dimension(aligned_right_repr, batch["alignment_nb"]).detach().cpu()
             )
 
-            
-        
-            left_embs[i,alignment_found:end] = aligned_left_repr[: end - alignment_found]
-            right_embs[i,alignment_found:end] = aligned_right_repr[: end - alignment_found]
+            left_embs[i, alignment_found:end] = aligned_left_repr[: end - alignment_found]
+            right_embs[i, alignment_found:end] = aligned_right_repr[: end - alignment_found]
 
         alignment_found = end
 
-        if alignment_found==left_embs.shape[1]:
+        if alignment_found == left_embs.shape[1]:
             break
 
     if model_back_to_cpu:
@@ -89,20 +88,22 @@ def evaluate_alignment(
     scores_fwd = []
     scores_bwd = []
     for i in range(len(layers)):
-        scores_fwd.append(evaluate_alignment_with_cosim(
-            left_embs[i],
-            right_embs[i],
-            device=device_for_search,
-            csls_k=csls_k,
-            strong_alignment=1.0 if strong_alignment else 0.0,
-        ))
-        scores_bwd.append(evaluate_alignment_with_cosim(
-            right_embs[i],
-            left_embs[i],
-            device=device_for_search,
-            csls_k=csls_k,
-            strong_alignment=1.0 if strong_alignment else 0.0,
-        ))
+        scores_fwd.append(
+            evaluate_alignment_with_cosim(
+                left_embs[i],
+                right_embs[i],
+                device=device_for_search,
+                strong_alignment=strong_alignment,
+            )
+        )
+        scores_bwd.append(
+            evaluate_alignment_with_cosim(
+                right_embs[i],
+                left_embs[i],
+                device=device_for_search,
+                strong_alignment=strong_alignment,
+            )
+        )
     return scores_fwd, scores_bwd
 
 
@@ -117,7 +118,6 @@ def evaluate_alignment_for_pairs(
     batch_size=4,
     model_back_to_cpu=False,
     device_for_search="cpu:0",
-    csls_k=10,
     strong_alignment=False,
     seed=None,
     split="train",
@@ -139,17 +139,16 @@ def evaluate_alignment_for_pairs(
         )
 
         fwd, bwd = evaluate_alignment(
-                tokenizer,
-                model,
-                dataset,
-                nb_pairs=nb_pairs,
-                batch_size=batch_size,
-                model_back_to_cpu=model_back_to_cpu,
-                device_for_search=device_for_search,
-                csls_k=csls_k,
-                strong_alignment=strong_alignment,
-                layers=layers,
-            )
+            tokenizer,
+            model,
+            dataset,
+            nb_pairs=nb_pairs,
+            batch_size=batch_size,
+            model_back_to_cpu=model_back_to_cpu,
+            device_for_search=device_for_search,
+            strong_alignment=strong_alignment,
+            layers=layers,
+        )
 
         scores_fwd.append(fwd)
         scores_bwd.append(bwd)
@@ -158,4 +157,3 @@ def evaluate_alignment_for_pairs(
             model = model.to(device_before)
 
     return scores_fwd, scores_bwd
-

@@ -66,6 +66,44 @@ def evaluate_alignment_with_cosim(
     tgt_emb: torch.Tensor,
     device="cpu",
     batch_size=800,
+    mean_centered=False,
+    mean_x=None,
+    mean_y=None,
+    strong_alignment=False,
+):
+    x = src_emb.to(device)
+    y = tgt_emb.to(device)
+
+    if mean_centered:
+        x -= mean_x.to(device) if mean_x is not None else torch.mean(x, axis=0, keepdim=True)
+        y -= mean_y.to(device) if mean_y is not None else torch.mean(y, axis=0, keepdim=True)
+    x /= torch.norm(x, p=2, dim=-1, keepdim=True)
+    y /= torch.norm(y, p=2, dim=-1, keepdim=True)
+
+    if strong_alignment:
+        y = torch.cat((y, x), dim=0)
+
+    batch = torch.zeros((batch_size, y.size()[0]), device=device)
+    predictions = torch.zeros((x.size()[0],), dtype=torch.long, device=device)
+
+    for i in range(0, x.size()[0], batch_size):
+        j = min(i + batch_size, x.size()[0])
+        torch.matmul(x[i:j], y.T, out=batch[: j - i])
+        if strong_alignment:
+            batch[range(j - i), range(i + tgt_emb.shape[0], j + tgt_emb.shape[0])] = 0
+        predictions[i:j] = torch.argmax(batch[: j - i], axis=1)
+
+    res = torch.count_nonzero(
+        predictions - torch.arange(0, x.size()[0], 1, dtype=torch.long, device=device)
+    )
+    return 1 - int(res.cpu()) / x.size()[0]
+
+
+def evaluate_alignment_with_cosim_and_knn(
+    src_emb: torch.Tensor,
+    tgt_emb: torch.Tensor,
+    device="cpu",
+    batch_size=800,
     csls_k=0,
     mean_centered=False,
     mean_x=None,

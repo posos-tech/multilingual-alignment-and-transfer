@@ -77,7 +77,6 @@ def evaluate_alignment_on_pairs(
     batch_size=2,
     device="cpu:0",
     strong_alignment=False,
-    csls_k=10,
     move_model_back_to_cpu=True,
 ):
     left_embs, right_embs = compute_pair_representations(
@@ -104,8 +103,7 @@ def evaluate_alignment_on_pairs(
             left_embs[layer],
             right_embs[layer],
             device=device,
-            csls_k=csls_k,
-            strong_alignment=1.0 if strong_alignment else 0.0,
+            strong_alignment=strong_alignment,
         )
         res.append(score)
     return res

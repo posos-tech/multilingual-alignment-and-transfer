@@ -65,7 +65,6 @@ def get_alignment_eval_callback(
             pairs,
             device=None,
             batch_size=batch_size,
-            csls_k=0,
             move_model_back_to_cpu=False,
             left_lang_id=left_lang_id,
             right_lang_id=right_lang_id,

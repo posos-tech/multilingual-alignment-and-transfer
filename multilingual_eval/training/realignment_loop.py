@@ -112,7 +112,6 @@ def evaluate_model_for_alignment_and_generalizationt(
             model_to_finetune,
             eval_realignment_dataset,
             nb_pairs=nb_pairs,
-            csls_k=0,
             strong_alignment=strong_alignment,
             layers=list(range(n_layers)),
         )
@@ -131,7 +130,6 @@ def evaluate_model_for_alignment_and_generalizationt(
         model,
         eval_realignment_dataset,
         nb_pairs=nb_pairs,
-        csls_k=0,
         strong_alignment=strong_alignment,
         layers=list(range(n_layers)),
     )
