@@ -26,6 +26,7 @@ def epoch_loop(
     realignment_step_callbacks=None,
     training_state: Optional[TrainingState] = None,
     log_first_sample=False,
+    parallelism=False,
 ):
     """
     Function to perform an epoch of training, with specific task samples and/or realignment task samples
@@ -108,7 +109,7 @@ def epoch_loop(
 
         if batch is not None:
 
-            if torch.cuda.device_count() > 1:
+            if parallelism and torch.cuda.device_count() > 1:
                 outputs = torch.nn.parallel.data_parallel(model, None, module_kwargs=batch)
                 tmp_loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
                 task_loss += tmp_loss.mean()

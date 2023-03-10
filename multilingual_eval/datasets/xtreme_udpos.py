@@ -18,9 +18,16 @@ get_xtreme_udpos = get_token_classification_getter(
 wuetal_subsets = {
     "en": "en_ewt",
     "ar": "ar_padt",
+    "bg": "bg_btb",
+    "de": "de_gsd",
+    "el": "el_gdt",
     "es": "es_gsd",
     "fr": "fr_gsd",
+    "hi": "hi_pud",
     "ru": "ru_gsd",
+    "th": "th_pud",
+    "tr": "tr_pud",
+    "vi": "vi_vtb",
     "zh": "zh_gsd",
 }
 

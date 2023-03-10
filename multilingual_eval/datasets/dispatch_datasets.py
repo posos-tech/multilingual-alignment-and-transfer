@@ -4,6 +4,7 @@ from transformers import (
     AutoModelForQuestionAnswering,
     DataCollatorWithPadding,
     DataCollatorForTokenClassification,
+    AutoConfig,
 )
 
 from multilingual_eval.datasets.wikiann_ner import get_wikiann_ner, get_wikiann_metric_fn
@@ -85,6 +86,37 @@ def model_fn(task_name, with_realignment=False):
             *args, **kwargs, num_labels=3
         ),
         "xquad": lambda *args, **kwargs: question_answering.from_pretrained(*args, **kwargs),
+    }[task_name]
+
+
+def model_fn_from_scratch(task_name, with_realignment=False):
+    if with_realignment:
+        token_classification = AutoModelForTokenClassificationWithRealignment
+        sequence_classification = AutoModelForSequenceClassificationWithRealignment
+        question_answering = AutoModelForQuestionAnsweringWithRealignment
+    else:
+        token_classification = AutoModelForTokenClassification
+        sequence_classification = AutoModelForSequenceClassification
+        question_answering = AutoModelForQuestionAnswering
+    return {
+        "wikiann": lambda *args, **kwargs: token_classification.from_config(
+            AutoConfig.from_pretrained(*args, **kwargs, num_labels=7)
+        ),
+        "udpos": lambda *args, **kwargs: token_classification.from_config(
+            AutoConfig.from_pretrained(*args, **kwargs, num_labels=18)
+        ),
+        "xtreme.udpos": lambda *args, **kwargs: token_classification.from_config(
+            AutoConfig.from_pretrained(*args, **kwargs, num_labels=18)
+        ),
+        "xnli": lambda *args, **kwargs: sequence_classification.from_config(
+            AutoConfig.from_pretrained(*args, **kwargs, num_labels=3)
+        ),
+        "pawsx": lambda *args, **kwargs: sequence_classification.from_config(
+            AutoConfig.from_pretrained(*args, **kwargs, num_labels=3)
+        ),
+        "xquad": lambda *args, **kwargs: question_answering.from_config(
+            AutoConfig.from_pretrained(*args, **kwargs)
+        ),
     }[task_name]
 
 
