@@ -6,6 +6,7 @@ from transformers import (
     DataCollatorForTokenClassification,
     AutoConfig,
 )
+from transformers.adapters import AutoAdapterModel, PfeifferInvConfig, PfeifferConfig
 
 from multilingual_eval.datasets.wikiann_ner import get_wikiann_ner, get_wikiann_metric_fn
 from multilingual_eval.datasets.xnli import get_xnli, xnli_metric_fn
@@ -87,6 +88,34 @@ def model_fn(task_name, with_realignment=False):
         ),
         "xquad": lambda *args, **kwargs: question_answering.from_pretrained(*args, **kwargs),
     }[task_name]
+
+
+def model_fn_with_adapter(task_name, langs):
+    # Note: contrary to models created with model_fn,
+    # realignment loss is computed from outside the model
+    # because I'm tired of rewriting the definitions of models
+    def get_model(*args, **kwargs):
+        model = AutoAdapterModel.from_pretrained(*args, **kwargs)
+
+        inv_config = PfeifferInvConfig()
+        for lang in langs:
+            model.add_adapter(f"{lang}_adapter", config=inv_config)
+            model.add_masked_lm_head(f"{lang}_adapter")
+        model.add_adapter("task", config=PfeifferConfig())
+
+        # TODO verify the naming convention for head
+        if task_name == "wikiann":
+            model.add_tagging_head("task", num_labels=7, overwrite_ok=True)
+        elif task_name in ["udpos", "xtreme.udpos"]:
+            model.add_tagging_head("task", num_labels=18, overwrite_ok=True)
+        elif task_name in ["xnli", "pawsx"]:
+            model.add_classification_head("task", num_labels=3, overwrite_ok=True)
+        else:
+            raise NotImplementedError(task_name)
+
+        return model
+
+    return get_model
 
 
 def model_fn_from_scratch(task_name, with_realignment=False):

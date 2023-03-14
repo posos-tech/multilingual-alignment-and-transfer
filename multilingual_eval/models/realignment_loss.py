@@ -19,6 +19,8 @@ def compute_realignment_loss(
     initial_model=None,
     realignment_loss="contrastive",
     train_only_mapping=False,
+    left_context=None,
+    right_context=None,
     # sentences from left language
     left_input_ids=None,
     left_attention_mask=None,
@@ -74,7 +76,7 @@ def compute_realignment_loss(
 
     total_loss = None
 
-    left_context_manager = torch.no_grad() if no_backward_for_source else DumbContext()
+    left_context_manager = left_context or (torch.no_grad() if no_backward_for_source else DumbContext())
 
     with left_context_manager:
         left_output = encoder(
@@ -122,24 +124,27 @@ def compute_realignment_loss(
 
         initial_hidden_states = initial_output.hidden_states
 
-    right_output = encoder(
-        right_input_ids,
-        attention_mask=right_attention_mask,
-        head_mask=right_head_mask,
-        inputs_embeds=right_inputs_embeds,
-        output_attentions=False,
-        output_hidden_states=True,
-        return_dict=True,
-        **({"token_type_ids": right_token_type_ids} if right_token_type_ids is not None else {}),
-        **({"position_ids": right_position_ids} if right_position_ids is not None else {}),
-        **(
-            {"lang_id": right_lang_id, "train_only_mapping": train_only_mapping}
-            if left_lang_id is not None or right_lang_id is not None
-            else {}
-        ),
-    )
+    right_context = right_context or DumbContext()
 
-    right_hidden_states = right_output.hidden_states
+    with right_context:
+        right_output = encoder(
+            right_input_ids,
+            attention_mask=right_attention_mask,
+            head_mask=right_head_mask,
+            inputs_embeds=right_inputs_embeds,
+            output_attentions=False,
+            output_hidden_states=True,
+            return_dict=True,
+            **({"token_type_ids": right_token_type_ids} if right_token_type_ids is not None else {}),
+            **({"position_ids": right_position_ids} if right_position_ids is not None else {}),
+            **(
+                {"lang_id": right_lang_id, "train_only_mapping": train_only_mapping}
+                if left_lang_id is not None or right_lang_id is not None
+                else {}
+            ),
+        )
+
+        right_hidden_states = right_output.hidden_states
 
     the_device = left_hidden_states[0].device
 

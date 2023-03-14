@@ -1,3 +1,4 @@
+import os
 import itertools
 import torch
 import logging
@@ -5,6 +6,7 @@ import math
 from typing import Optional
 import random
 import numpy as np
+from tqdm import tqdm
 from transformers.optimization import get_scheduler
 
 from multilingual_eval.training.utils import bring_batch_to_model, get_next_or_restart
@@ -69,6 +71,8 @@ def epoch_loop(
         realignment_iterator = iter(realignment_dataloader)
 
     nb_batch = math.ceil(nb_iter / task_accumulation_steps)
+
+    progress_bar = tqdm(total=nb_batch, file=open(os.devnull, "w"))
 
     for i, batch in (
         enumerate(task_dataloader)
@@ -138,6 +142,8 @@ def epoch_loop(
                 for callback in realignment_step_callbacks:
                     callback(model)
 
+            progress_bar.update()
+
             if logging_steps is not None and (i // task_accumulation_steps) % logging_steps == 0:
 
                 if training_state is not None:
@@ -145,7 +151,7 @@ def epoch_loop(
                 else:
                     batch_seen = math.ceil(i / task_accumulation_steps)
 
-                    logging.info(f"batch: {i}/{nb_batch} loss : {total_loss}")
+                    logging.info(f"batch: {i}/{nb_batch} loss : {total_loss} {progress_bar}")
                     res = None
 
                 if log_in_wandb:
@@ -157,6 +163,8 @@ def epoch_loop(
                             "task_loss": task_loss,
                         }
                     )
+    
+    progress_bar.close()
 
     return training_state
 
