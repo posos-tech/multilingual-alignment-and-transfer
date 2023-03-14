@@ -90,7 +90,7 @@ def model_fn(task_name, with_realignment=False):
     }[task_name]
 
 
-def model_fn_with_adapter(task_name, langs=None):
+def model_fn_with_adapter(task_name, langs=None, n_layers=1):
     # Note: contrary to models created with model_fn,
     # realignment loss is computed from outside the model
     # because I'm tired of rewriting the definitions of models
@@ -107,11 +107,11 @@ def model_fn_with_adapter(task_name, langs=None):
 
         # TODO verify the naming convention for head
         if task_name == "wikiann":
-            model.add_tagging_head("task", num_labels=7, overwrite_ok=True)
+            model.add_tagging_head("task", num_labels=7, overwrite_ok=True, layers=n_layers)
         elif task_name in ["udpos", "xtreme.udpos"]:
-            model.add_tagging_head("task", num_labels=18, overwrite_ok=True)
+            model.add_tagging_head("task", num_labels=18, overwrite_ok=True, layers=n_layers)
         elif task_name in ["xnli", "pawsx"]:
-            model.add_classification_head("task", num_labels=3, overwrite_ok=True)
+            model.add_classification_head("task", num_labels=3, overwrite_ok=True, layers=n_layers)
         else:
             raise NotImplementedError(task_name)
 
