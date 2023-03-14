@@ -90,17 +90,19 @@ def model_fn(task_name, with_realignment=False):
     }[task_name]
 
 
-def model_fn_with_adapter(task_name, langs):
+def model_fn_with_adapter(task_name, langs=None):
     # Note: contrary to models created with model_fn,
     # realignment loss is computed from outside the model
     # because I'm tired of rewriting the definitions of models
     def get_model(*args, **kwargs):
         model = AutoAdapterModel.from_pretrained(*args, **kwargs)
 
-        inv_config = PfeifferInvConfig()
-        for lang in langs:
-            model.add_adapter(f"{lang}_adapter", config=inv_config)
-            model.add_masked_lm_head(f"{lang}_adapter")
+        if langs:
+            inv_config = PfeifferInvConfig()
+            for lang in langs:
+                model.add_adapter(f"{lang}_adapter", config=inv_config)
+                model.add_masked_lm_head(f"{lang}_adapter")
+
         model.add_adapter("task", config=PfeifferConfig())
 
         # TODO verify the naming convention for head

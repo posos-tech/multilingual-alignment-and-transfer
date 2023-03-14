@@ -28,6 +28,7 @@ def finetuning_loop_with_adapters(
     metric_fn=None,
     seed=None,
     num_workers=0,
+    baseline=False,
 ):
     eval_datasets = eval_datasets or []
     eval_languages = eval_languages or []
@@ -82,21 +83,26 @@ def finetuning_loop_with_adapters(
 
     model.train_adapter(["task"])
 
+    if baseline:
+        model.set_active_adapters("task")
+
     for i_epoch in range(n_epochs):
 
         logging.info(f"Starting epoch {i_epoch + 1} / {n_epochs}")
 
-        with AdapterSetup(Stack(f"{lang}_adapter", "task")):
-            training_state = epoch_loop(
-                model,
-                optimizer,
-                scheduler=scheduler,
-                task_dataloader=task_dataloader,
-                task_accumulation_steps=accumulation_steps,
-                logging_steps=logging_steps,
-                log_in_wandb=log_in_wandb,
-                training_state=training_state,
-            )
+        if not baseline:
+            model.set_active_adapters(Stack(f"{lang}_adapter", "task"))
+
+        training_state = epoch_loop(
+            model,
+            optimizer,
+            scheduler=scheduler,
+            task_dataloader=task_dataloader,
+            task_accumulation_steps=accumulation_steps,
+            logging_steps=logging_steps,
+            log_in_wandb=log_in_wandb,
+            training_state=training_state,
+        )
 
         for eval_lang, eval_dataset in zip(eval_languages, eval_datasets):
             eval_dataloader = torch.utils.data.DataLoader(
@@ -105,10 +111,12 @@ def finetuning_loop_with_adapters(
                 batch_size=batch_size,
                 collate_fn=collator,
             )
-            with AdapterSetup(Stack(f"{eval_lang}_adapter", "task")):
-                res = evaluate_token_classification(
-                    model, eval_dataloader, prefix=f"eval_{eval_lang}", metric_fn=metric_fn
-                )
-                logging.info(res)
-                if log_in_wandb:
-                    wandb.log(res)
+
+            if not baseline:
+                model.set_active_adapters(Stack(f"{lang}_adapter", "task"))
+            res = evaluate_token_classification(
+                model, eval_dataloader, prefix=f"eval_{eval_lang}", metric_fn=metric_fn
+            )
+            logging.info(res)
+            if log_in_wandb:
+                wandb.log(res)
