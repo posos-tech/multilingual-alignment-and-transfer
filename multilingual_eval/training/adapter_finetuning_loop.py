@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 from transformers import DataCollatorForTokenClassification, AdapterSetup
-from transformers.optimization import get_scheduler
+from transformers.optimization import get_scheduler, AdamW
 from transformers.adapters.composition import Stack
 
 from multilingual_eval.training.epoch_loop import epoch_loop
@@ -21,7 +21,7 @@ def finetuning_loop_with_adapters(
     n_epochs=2,
     batch_size=4,
     accumulation_steps=8,
-    learning_rate=2e-5,
+    learning_rate=1e-4,
     logging_steps=None,
     log_in_wandb=False,
     collator=None,
@@ -71,13 +71,14 @@ def finetuning_loop_with_adapters(
 
     logging_steps = logging_steps or max(1, len(task_dataloader) // 100)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
-    scheduler = get_scheduler(
-        "linear",
-        optimizer,
-        num_warmup_steps=int(0.1 * len(task_dataloader) * 5),
-        num_training_steps=len(task_dataloader) * 5,
-    )
+    optimizer = AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
+    # scheduler = get_scheduler(
+    #     "linear",
+    #     optimizer,
+    #     num_warmup_steps=int(0.1 * len(task_dataloader) * 5),
+    #     num_training_steps=len(task_dataloader) * 5,
+    # )
+    scheduler = None
 
     training_state = None
 

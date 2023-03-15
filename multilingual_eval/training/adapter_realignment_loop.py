@@ -7,6 +7,7 @@ import numpy as np
 
 from tqdm import tqdm
 from transformers import set_seed, AdapterSetup
+from transformers.optimization import AdamW
 
 
 from multilingual_eval.training.utils import bring_batch_to_model
@@ -22,7 +23,7 @@ def realignment_loop_with_adapters(
     probabilities=None,
     n_steps=1_000_000,
     realignment_batch_size=16,
-    learning_rate=2e-5,
+    learning_rate=1e-4,
     logging_steps=None,
     log_in_wandb=False,
     seed=None,
@@ -56,7 +57,7 @@ def realignment_loop_with_adapters(
         for dataset in realignment_datasets
     ]
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
+    optimizer = AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
 
     iterators = list(map(iter, dataloaders))
 
