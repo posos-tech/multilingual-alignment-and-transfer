@@ -29,6 +29,7 @@ def realignment_loop_with_adapters(
     seed=None,
     num_workers=0,
     strong_alignment=True,
+    no_adapter_for=None,
 ):
     assert len(pairs) == len(realignment_datasets)
 
@@ -73,6 +74,7 @@ def realignment_loop_with_adapters(
         [
             f"{lang}_adapter"
             for lang in itertools.chain(map(lambda x: x[0], pairs), map(lambda x: x[1], pairs))
+            if lang != no_adapter_for
         ]
     )
 
@@ -97,8 +99,8 @@ def realignment_loop_with_adapters(
             realignment_transformation,
             [-1],
             strong_alignment=strong_alignment,
-            left_context=AdapterSetup(f"{left}_adapter"),
-            right_context=AdapterSetup(f"{right}_adapter"),
+            left_context=(AdapterSetup(f"{left}_adapter") if (left != no_adapter_for) else None),
+            right_context=(AdapterSetup(f"{right}_adapter") if (right != no_adapter_for) else None),
             **batch,
         )
 

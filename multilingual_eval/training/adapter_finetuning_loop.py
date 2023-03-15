@@ -29,6 +29,7 @@ def finetuning_loop_with_adapters(
     seed=None,
     num_workers=0,
     baseline=False,
+    no_adapter_for=None,
 ):
     eval_datasets = eval_datasets or []
     eval_languages = eval_languages or []
@@ -92,7 +93,9 @@ def finetuning_loop_with_adapters(
         logging.info(f"Starting epoch {i_epoch + 1} / {n_epochs}")
 
         if not baseline:
-            model.set_active_adapters(Stack(f"{lang}_adapter", "task"))
+            model.set_active_adapters(
+                Stack(f"{lang}_adapter", "task") if lang != no_adapter_for else "task"
+            )
 
         training_state = epoch_loop(
             model,
@@ -114,7 +117,9 @@ def finetuning_loop_with_adapters(
             )
 
             if not baseline:
-                model.set_active_adapters(Stack(f"{lang}_adapter", "task"))
+                model.set_active_adapters(
+                    Stack(f"{eval_lang}_adapter", "task") if eval_lang != no_adapter_for else "task"
+                )
             res = evaluate_token_classification(
                 model, eval_dataloader, prefix=f"eval_{eval_lang}", metric_fn=metric_fn
             )
