@@ -124,22 +124,23 @@ def evaluate_model_for_alignment_and_generalizationt(
 
         del model_to_finetune
 
-    model.to(device)
-    scores_fwd, scores_bwd = evaluate_alignment(
-        tokenizer,
-        model,
-        eval_realignment_dataset,
-        nb_pairs=nb_pairs,
-        strong_alignment=strong_alignment,
-        layers=list(range(n_layers)),
-    )
-    model.to("cpu")
+    if eval_realignment_dataset is not None:
+        model.to(device)
+        scores_fwd, scores_bwd = evaluate_alignment(
+            tokenizer,
+            model,
+            eval_realignment_dataset,
+            nb_pairs=nb_pairs,
+            strong_alignment=strong_alignment,
+            layers=list(range(n_layers)),
+        )
+        model.to("cpu")
 
-    res = {
-        **{f"alignment_before_fwd_{i}": s for i, s in enumerate(scores_fwd)},
-        **{f"alignment_before_bwd_{i}": s for i, s in enumerate(scores_bwd)},
-    }
-    log_fn(res)
+        res = {
+            **{f"alignment_before_fwd_{i}": s for i, s in enumerate(scores_fwd)},
+            **{f"alignment_before_bwd_{i}": s for i, s in enumerate(scores_bwd)},
+        }
+        log_fn(res)
 
 
 def realignment_loop(
@@ -169,8 +170,12 @@ def realignment_loop(
     else:
         log_fn = logging.info
 
-    eval_realignment_dataset = TorchCompatibleIterableDataset(realignment_dataset.take(nb_pairs))
-    train_realignment_dataset = TorchCompatibleIterableDataset(realignment_dataset.skip(nb_pairs))
+    if nb_pairs == 0:
+        eval_realignment_dataset = None
+        train_realignment_dataset = TorchCompatibleIterableDataset(realignment_dataset)
+    else:
+        eval_realignment_dataset = TorchCompatibleIterableDataset(realignment_dataset.take(nb_pairs))
+        train_realignment_dataset = TorchCompatibleIterableDataset(realignment_dataset.skip(nb_pairs))
 
     fine_tuning_tasks = fine_tuning_tasks or []
 
