@@ -13,7 +13,7 @@ from transformers.modeling_outputs import (
 )
 from transformers import (
     BertModel,
-    RobertaModel,
+    XLMRobertaModel,
     DistilBertModel,
 )
 
@@ -277,7 +277,7 @@ class AutoModelForSequenceClassificationWithRealignment:
             return model_with_realignment_factory(
                 CustomBertForSequenceClassification, SequenceClassifierOutput
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
-        elif issubclass(model_class, RobertaModel):
+        elif issubclass(model_class, XLMRobertaModel):
             return model_with_realignment_factory(
                 CustomRobertaForSequenceClassification, SequenceClassifierOutput
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
@@ -300,7 +300,7 @@ class AutoModelForTokenClassificationWithRealignment:
             return model_with_realignment_factory(
                 CustomBertForTokenClassification, TokenClassifierOutput
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
-        elif issubclass(model_class, RobertaModel):
+        elif issubclass(model_class, XLMRobertaModel):
             return model_with_realignment_factory(
                 CustomRobertaForTokenClassification, TokenClassifierOutput
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
@@ -323,7 +323,7 @@ class AutoModelForQuestionAnsweringWithRealignment:
             return model_with_realignment_factory(
                 CustomBertForQuestionAnswering, QuestionAnsweringModelOutput
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
-        elif issubclass(model_class, RobertaModel):
+        elif issubclass(model_class, XLMRobertaModel):
             return model_with_realignment_factory(
                 CustomRobertaForQuestionAnswering, QuestionAnsweringModelOutput
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)

@@ -2,9 +2,9 @@ from typing import Optional, List, Union, Tuple
 import torch
 from transformers import (
     BertForTokenClassification,
-    RobertaForTokenClassification,
+    XLMRobertaForTokenClassification,
     BertModel,
-    RobertaModel,
+    XLMRobertaModel,
     DistilBertModel,
     DistilBertForTokenClassification,
 )
@@ -131,7 +131,7 @@ CustomBertForTokenClassification = token_classifier_with_optional_mapping_factor
     BertForTokenClassification,
 )
 CustomRobertaForTokenClassification = token_classifier_with_optional_mapping_factory(
-    RobertaForTokenClassification,
+    XLMRobertaForTokenClassification,
 )
 CustomDistilBertForTokenClassification = token_classifier_with_optional_mapping_factory(
     DistilBertForTokenClassification,
@@ -147,9 +147,9 @@ class CustomAutoModelForTokenClassification:
             return token_classifier_with_optional_mapping_factory(
                 BertForTokenClassification,
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
-        elif issubclass(model_class, RobertaModel):
+        elif issubclass(model_class, XLMRobertaModel):
             return token_classifier_with_optional_mapping_factory(
-                RobertaForTokenClassification,
+                XLMRobertaForTokenClassification,
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
         elif issubclass(model_class, DistilBertModel):
             return token_classifier_with_optional_mapping_factory(

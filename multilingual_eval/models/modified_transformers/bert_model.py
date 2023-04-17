@@ -1,6 +1,6 @@
 from typing import Optional, Union, Tuple, List
 import torch
-from transformers import BertModel, RobertaModel
+from transformers import BertModel, XLMRobertaModel
 from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions
 
 from multilingual_eval.models.multiple_mapping import MultipleMappings
@@ -17,9 +17,9 @@ def encoder_with_optional_mapping_factory(BaseClass):
     It takes as argument an encoder class like BertModel or RobertaModel
     """
 
-    if not issubclass(BaseClass, (BertModel, RobertaModel)):
+    if not issubclass(BaseClass, (BertModel, XLMRobertaModel)):
         raise NotImplementedError(
-            f"encoder_with_optional_mapping_factory only works with BertModel or RobertaModel, got {BaseClass.__name__}"
+            f"encoder_with_optional_mapping_factory only works with BertModel or XLMRobertaModel, got {BaseClass.__name__}"
         )
 
     class CustomEncoder(BaseClass):

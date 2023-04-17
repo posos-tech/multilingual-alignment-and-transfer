@@ -2,9 +2,9 @@ from typing import Optional, List, Union, Tuple
 import torch
 from transformers import (
     BertForQuestionAnswering,
-    RobertaForQuestionAnswering,
+    XLMRobertaForQuestionAnswering,
     BertModel,
-    RobertaModel,
+    XLMRobertaModel,
     DistilBertModel,
     DistilBertForQuestionAnswering,
 )
@@ -153,7 +153,7 @@ CustomBertForQuestionAnswering = question_answering_with_optional_mapping_factor
     BertForQuestionAnswering,
 )
 CustomRobertaForQuestionAnswering = question_answering_with_optional_mapping_factory(
-    RobertaForQuestionAnswering,
+    XLMRobertaForQuestionAnswering,
 )
 CustomDistilBertForQuestionAnswering = question_answering_with_optional_mapping_factory(
     DistilBertForQuestionAnswering,
@@ -169,9 +169,9 @@ class CustomAutoModelForQuestionAnswering:
             return question_answering_with_optional_mapping_factory(
                 BertForQuestionAnswering,
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
-        elif issubclass(model_class, RobertaModel):
+        elif issubclass(model_class, XLMRobertaModel):
             return question_answering_with_optional_mapping_factory(
-                RobertaForQuestionAnswering,
+                XLMRobertaForQuestionAnswering,
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
         elif issubclass(model_class, DistilBertModel):
             return question_answering_with_optional_mapping_factory(

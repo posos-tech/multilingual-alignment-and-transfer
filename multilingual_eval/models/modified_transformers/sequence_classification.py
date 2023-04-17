@@ -2,10 +2,10 @@ from typing import Optional, Union, Tuple
 import torch
 from transformers import (
     BertForSequenceClassification,
-    RobertaForSequenceClassification,
+    XLMRobertaForSequenceClassification,
     DistilBertForSequenceClassification,
     BertModel,
-    RobertaModel,
+    XLMRobertaModel,
     DistilBertModel,
 )
 from transformers.modeling_outputs import SequenceClassifierOutput
@@ -142,7 +142,7 @@ def sequence_classifier_with_optional_mapping_factory(BaseClass, classifier_gett
     return CustomModelForSequenceClassification
 
 
-def roberta_sequence_classifier_getter(model: RobertaForSequenceClassification):
+def roberta_sequence_classifier_getter(model: XLMRobertaForSequenceClassification):
     def classifier(outputs):
         sequence_output = outputs[0]
         logits = model.classifier(sequence_output)
@@ -169,7 +169,7 @@ CustomBertForSequenceClassification = sequence_classifier_with_optional_mapping_
     BertForSequenceClassification
 )
 CustomRobertaForSequenceClassification = sequence_classifier_with_optional_mapping_factory(
-    RobertaForSequenceClassification, classifier_getter=roberta_sequence_classifier_getter
+    XLMRobertaForSequenceClassification, classifier_getter=roberta_sequence_classifier_getter
 )
 CustomDistilBertForSequenceClassification = sequence_classifier_with_optional_mapping_factory(
     DistilBertForSequenceClassification, classifier_getter=distilbert_sequence_classifier_getter
@@ -185,9 +185,9 @@ class CustomAutoModelForSequenceClassification:
             return sequence_classifier_with_optional_mapping_factory(
                 BertForSequenceClassification
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
-        elif issubclass(model_class, RobertaModel):
+        elif issubclass(model_class, XLMRobertaModel):
             return sequence_classifier_with_optional_mapping_factory(
-                RobertaForSequenceClassification,
+                XLMRobertaForSequenceClassification,
                 classifier_getter=roberta_sequence_classifier_getter,
             ).from_pretrained(path, *args, cache_dir=cache_dir, **kwargs)
         elif issubclass(model_class, DistilBertModel):
