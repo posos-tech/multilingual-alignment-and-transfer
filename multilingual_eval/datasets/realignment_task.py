@@ -285,7 +285,7 @@ def get_multilingual_realignment_dataset(
     lang_to_id: Optional[Dict[str, int]] = None,
     split="train",
     return_torch_compatible=True,
-    interleave_datasets=True,
+    do_interleave_datasets=True,
 ):
     lang_to_id = lang_to_id or defaultdict(lambda: None)
     datasets = [
@@ -301,7 +301,7 @@ def get_multilingual_realignment_dataset(
         for left_lang, right_lang in pairs
     ]
 
-    if not interleave_datasets:
+    if not do_interleave_datasets:
         if return_torch_compatible:
             datasets = list(map(TorchCompatibleIterableDataset, datasets))
         return datasets
