@@ -1,4 +1,5 @@
 import torch
+import logging
 import numpy as np
 import os
 
@@ -20,8 +21,10 @@ def evaluate_alignment(
     device_for_search="cpu:0",
     strong_alignment=False,
     layers=None,
+    boostrap=False,
+    boostrap_p=0.8,
+    seed=None,
 ):
-
     n_dim = model.config.hidden_size
     layers = layers or [-1]
 
@@ -52,7 +55,6 @@ def evaluate_alignment(
         end = min(alignment_found + np.sum(batch["alignment_nb"].numpy()), left_embs.shape[1])
 
         for i, layer in enumerate(layers):
-
             left_reprs = left_output[layer]
             right_reprs = right_output[layer]
 
@@ -85,25 +87,41 @@ def evaluate_alignment(
     if model_back_to_cpu:
         model = model.cpu()
 
+    if not boostrap:
+        ids = None
+    else:
+        if seed:
+            np.random.seed(seed)
+        ids = np.random.choice(
+            list(range(alignment_found)),
+            size=(int(boostrap_p * alignment_found),),
+            replace=False,
+        )
+        ids = torch.from_numpy(ids)
+
     scores_fwd = []
     scores_bwd = []
+
+    logging.info(f"Alignment found: {alignment_found}")
+
     for i in range(len(layers)):
         scores_fwd.append(
             evaluate_alignment_with_cosim(
-                left_embs[i],
-                right_embs[i],
+                left_embs[i][:alignment_found],
+                right_embs[i][:alignment_found],
                 device=device_for_search,
                 strong_alignment=strong_alignment,
             )
         )
         scores_bwd.append(
             evaluate_alignment_with_cosim(
-                right_embs[i],
-                left_embs[i],
+                right_embs[i][:alignment_found],
+                left_embs[i][:alignment_found],
                 device=device_for_search,
                 strong_alignment=strong_alignment,
             )
         )
+
     return scores_fwd, scores_bwd
 
 

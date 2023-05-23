@@ -70,9 +70,11 @@ def evaluate_alignment_with_cosim(
     mean_x=None,
     mean_y=None,
     strong_alignment=False,
+    ids=None,
 ):
     x = src_emb.to(device)
     y = tgt_emb.to(device)
+    ids = ids or torch.arange(0, x.size()[0], 1, dtype=torch.long, device=device)
 
     if mean_centered:
         x -= mean_x.to(device) if mean_x is not None else torch.mean(x, axis=0, keepdim=True)
@@ -94,9 +96,9 @@ def evaluate_alignment_with_cosim(
         predictions[i:j] = torch.argmax(batch[: j - i], axis=1)
 
     res = torch.count_nonzero(
-        predictions - torch.arange(0, x.size()[0], 1, dtype=torch.long, device=device)
+        (predictions - torch.arange(0, x.size()[0], 1, dtype=torch.long, device=device))[ids]
     )
-    return 1 - int(res.cpu()) / x.size()[0]
+    return 1 - int(res.cpu()) / ids.size()[0]
 
 
 def evaluate_alignment_with_cosim_and_knn(
