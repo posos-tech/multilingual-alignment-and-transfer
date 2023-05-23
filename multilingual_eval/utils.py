@@ -196,6 +196,17 @@ class ChineseTokenizer:
         return self.segmenter(sentence)
 
 
+class ThaiTokenizer:
+    def __init__(self):
+        from pythainlp.tokenize import word_tokenize
+
+        self._segmentation_fn = word_tokenize
+
+    def tokenize(self, sentence):
+        words = self._segmentation_fn(sentence)
+        return list(filter(lambda x: len(x) > 0, words))
+
+
 class LanguageSpecificTokenizer:
     """
     Tokenizer that tokenized differently according to language.
@@ -203,18 +214,19 @@ class LanguageSpecificTokenizer:
     otherwise, it uses the RegexTokenizer
     """
 
-    def __init__(self, specific_segmenter: Optional[StanfordSegmenter] = None):
+    def __init__(self, specific_segmenter: Optional[StanfordSegmenter] = None, thai=False):
         """
         - zh_segmenter: optional, but if not provided (and started with a with-statement), will default
         to regex tokenizer when tokenizing chinese (not recommended)
         """
-        if specific_segmenter:
+        if thai:
+            self._tokenizer = ThaiTokenizer()
+        elif specific_segmenter:
             self._tokenizer = ChineseTokenizer(specific_segmenter)
         else:
             self._tokenizer = RegexTokenizer()
 
     def tokenize(self, sentence):
-
         return self._tokenizer.tokenize(sentence)
 
 
