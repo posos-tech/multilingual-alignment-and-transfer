@@ -3,7 +3,10 @@ import logging
 import numpy as np
 import os
 
-from multilingual_eval.datasets.realignment_task import get_realignment_dataset_for_one_pair
+from multilingual_eval.datasets.realignment_task import (
+    get_realignment_dataset_for_one_pair,
+    get_multiparallel_realignment_dataset,
+)
 from multilingual_eval.datasets.data_utils import TorchCompatibleIterableDataset
 from multilingual_eval.datasets.collators import RealignmentCollator
 from multilingual_eval.training.utils import bring_batch_to_model
@@ -145,7 +148,6 @@ def evaluate_alignment_for_pairs(
     scores_bwd = []
     device_before = model.device
     for left_lang, right_lang in lang_pairs:
-
         dataset = get_realignment_dataset_for_one_pair(
             tokenizer,
             os.path.join(translation_path, f"{left_lang}-{right_lang}.tokenized.{split}.txt"),
@@ -166,6 +168,75 @@ def evaluate_alignment_for_pairs(
             device_for_search=device_for_search,
             strong_alignment=strong_alignment,
             layers=layers,
+        )
+
+        scores_fwd.append(fwd)
+        scores_bwd.append(bwd)
+
+        if model_back_to_cpu:
+            model = model.to(device_before)
+
+    return scores_fwd, scores_bwd
+
+
+def evaluate_multiparallel_alignment(
+    tokenizer,
+    model,
+    translation_path,
+    alignment_path,
+    lang_pairs,
+    max_length=None,
+    nb_pairs=5000,
+    batch_size=4,
+    model_back_to_cpu=False,
+    device_for_search="cpu:0",
+    strong_alignment=False,
+    seed=None,
+    split="train",
+    layers=None,
+    boostrap=False,
+    boostrap_p=0.8,
+):
+    assert (
+        len(set(map(lambda x: x[0], lang_pairs))) == 1
+    ), f"evaluate_multiparallel_alignment accepts for lang_pairs only pairs involving the same left language (pivot) got {len(len(set(map(lambda x: x[0], lang_pairs))))} differents left lang"
+
+    left_lang = lang_pairs[0][0]
+    right_langs = list(map(lambda x: x[1], lang_pairs))
+
+    datasets = get_multiparallel_realignment_dataset(
+        tokenizer,
+        [
+            os.path.join(translation_path, f"{left_lang}-{right_lang}.tokenized.{split}.txt")
+            for right_lang in right_langs
+        ],
+        [
+            os.path.join(alignment_path, f"{left_lang}-{right_lang}.{split}")
+            for right_lang in right_langs
+        ],
+        max_length=max_length,
+        seed=seed,
+        left_id=None,
+        right_id=None,
+    )
+
+    scores_fwd = []
+    scores_bwd = []
+    device_before = model.device
+    for dataset in datasets:
+        fwd, bwd = evaluate_alignment(
+            tokenizer,
+            model,
+            dataset,
+            nb_pairs=nb_pairs,
+            batch_size=batch_size,
+            model_back_to_cpu=model_back_to_cpu,
+            device_for_search=device_for_search,
+            strong_alignment=strong_alignment,
+            layers=layers,
+            seed=seed,
+            boostrap=boostrap,
+            boostrap_p=boostrap_p,
         )
 
         scores_fwd.append(fwd)

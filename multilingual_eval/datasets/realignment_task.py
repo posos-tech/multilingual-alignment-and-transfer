@@ -4,6 +4,9 @@ from datasets import interleave_datasets
 from typing import List, Tuple, Optional, Dict
 import os
 from collections import defaultdict
+import contextlib
+import numpy as np
+import logging
 
 from multilingual_eval.datasets.data_utils import TorchCompatibleIterableDataset
 
@@ -67,6 +70,142 @@ def get_pharaoh_dataset(
             yield from pharaoh_reader()
 
     return IterableDataset(ExamplesIterable(pharaoh_reader, {}))
+
+
+def get_multiparallel_pharaoh_dataset(
+    translation_files: List[str],
+    alignment_files: List[str],
+    repeat=False,
+    keep_only_one_to_one=True,
+    ignore_identical=False,
+):
+    def multiparallel_reader():
+        with contextlib.ExitStack() as stack:
+            translation_readers = [stack.enter_context(open(fname)) for fname in translation_files]
+            alignment_readers = [stack.enter_context(open(fname)) for fname in alignment_files]
+
+            for i, (translations, alignments) in enumerate(
+                zip(zip(*translation_readers), zip(*alignment_readers))
+            ):
+                parts = list(map(lambda x: x.split("|||"), translations))
+                if any(map(lambda x: len(x) != 2, parts)):
+                    continue
+
+                left_tokens = list(
+                    map(lambda x: list(filter(lambda y: len(y) > 0, x[0].split())), parts)
+                )
+                right_tokens = list(
+                    map(lambda x: list(filter(lambda y: len(y) > 0, x[1].split())), parts)
+                )
+
+                pairs = list(map(lambda x: x.strip().split(), alignments))
+                pairs = list(
+                    map(lambda y: list(map(lambda x: tuple(map(int, x.split("-"))), y)), pairs)
+                )
+
+                left_positions = list(map(lambda y: list(map(lambda x: x[0], y)), pairs))
+                right_positions = list(map(lambda y: list(map(lambda x: x[1], y)), pairs))
+
+                # We only keep pairs involving left words that are involved
+                # in one and only one pair
+                new_left_positions = []
+                new_right_positions = []
+                for single_left_pos, single_right_pos in zip(left_positions, right_positions):
+                    new_single_left = []
+                    new_single_right = []
+                    for a, b in zip(single_left_pos, single_right_pos):
+                        if single_left_pos.count(a) > 1:
+                            continue
+                        new_single_left.append(a)
+                        new_single_right.append(b)
+                    new_left_positions.append(new_single_left)
+                    new_right_positions.append(new_single_right)
+
+                left_positions = new_left_positions
+                right_positions = new_right_positions
+
+                if keep_only_one_to_one:
+                    new_left_positions = []
+                    new_right_positions = []
+                    for single_left_pos, single_right_pos in zip(left_positions, right_positions):
+                        new_single_left = []
+                        new_single_right = []
+                        for a, b in zip(single_left_pos, single_right_pos):
+                            if single_right_pos.count(b) > 1:
+                                continue
+                            new_single_left.append(a)
+                            new_single_right.append(b)
+                        new_left_positions.append(new_single_left)
+                        new_right_positions.append(new_single_right)
+
+                    left_positions = new_left_positions
+                    right_positions = new_right_positions
+
+                if ignore_identical:
+                    new_left_positions = []
+                    new_right_positions = []
+                    for i, (single_left_pos, single_right_pos) in enumerate(
+                        zip(left_positions, right_positions)
+                    ):
+                        new_single_left = []
+                        new_single_right = []
+                        for a, b in zip(single_left_pos, single_right_pos):
+                            if left_tokens[i][a] == right_tokens[i][b]:
+                                continue
+                            new_single_left.append(a)
+                            new_single_right.append(b)
+                        new_left_positions.append(new_single_left)
+                        new_right_positions.append(new_single_right)
+
+                    left_positions = new_left_positions
+                    right_positions = new_right_positions
+
+                # Keep only pairs involving left words involved in all languages
+                left_positions_sets = list(map(set, left_positions))
+                common_left_positions = left_positions_sets[0].intersection(
+                    *left_positions_sets[1:]
+                )
+
+                left_positions = list(
+                    map(
+                        lambda y: list(
+                            map(lambda x: x[0], filter(lambda x: x[0] in common_left_positions, y))
+                        ),
+                        pairs,
+                    )
+                )
+                right_positions = list(
+                    map(
+                        lambda y: list(
+                            map(lambda x: x[1], filter(lambda x: x[0] in common_left_positions, y))
+                        ),
+                        pairs,
+                    )
+                )
+
+                if len(left_positions[0]) == 0:
+                    continue
+
+                yield i, {
+                    "left_tokens": left_tokens,
+                    "right_tokens": right_tokens,
+                    "aligned_left_ids": left_positions,
+                    "aligned_right_ids": right_positions,
+                }
+        if repeat:
+            yield from multiparallel_reader()
+
+    datasets = [[] for _ in range(len(translation_files))]
+    for i, sample in multiparallel_reader():
+        for j in range(len(translation_files)):
+            datasets[j].append((i, {key: value[j] for key, value in sample.items()}))
+
+    logging.info(datasets[0][0])
+
+    def generator(dataset):
+        yield from iter(dataset)
+
+    return [IterableDataset(ExamplesIterable(generator, {"dataset": ds})) for ds in datasets]
 
 
 class AdaptAlignmentToTokenizerMapper:
@@ -273,6 +412,41 @@ def get_realignment_dataset_for_one_pair(
     if right_id is not None:
         dataset = dataset.map(lambda x: {**x, "right_lang_id": [right_id]})
     return dataset.with_format("torch")
+
+
+def get_multiparallel_realignment_dataset(
+    tokenizer,
+    translation_files: List[str],
+    alignment_files: List[str],
+    max_length=None,
+    first_subowrd_only=True,
+    ignore_identical=False,
+    seed=None,
+    left_id=None,
+    right_id=None,
+):
+
+    datasets = get_multiparallel_pharaoh_dataset(
+        translation_files, alignment_files, ignore_identical=ignore_identical
+    )
+    mapper = AdaptAlignmentToTokenizerMapper(
+        tokenizer, max_length=max_length, first_subword_only=first_subowrd_only
+    )
+    datasets = [
+        dataset.map(
+            mapper,
+            batched=True,
+            remove_columns=["aligned_left_ids", "aligned_right_ids", "left_tokens", "right_tokens"],
+        ).filter(lambda x: len(x["alignment_left_ids"]) > 0)
+        for dataset in datasets
+    ]
+    if left_id is not None:
+        datasets = [dataset.map(lambda x: {**x, "left_lang_id": [left_id]}) for dataset in datasets]
+    if right_id is not None:
+        datasets = [
+            dataset.map(lambda x: {**x, "right_lang_id": [right_id]}) for dataset in datasets
+        ]
+    return [dataset.with_format("torch") for dataset in datasets]
 
 
 def get_multilingual_realignment_dataset(
