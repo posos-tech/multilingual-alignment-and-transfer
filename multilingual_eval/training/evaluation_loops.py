@@ -2,11 +2,14 @@ from collections import defaultdict
 from typing import Dict
 from multilingual_eval.training.utils import bring_batch_to_model, prefix_dictionary
 
+import logging
+
 from torch.utils.data import DataLoader
-from transformers import DataCollatorForTokenClassification
+from transformers import DataCollatorForTokenClassification, QuestionAnsweringPipeline
 from transformers.trainer_pt_utils import nested_concat
 
 from multilingual_eval.datasets.token_classification import get_token_classification_metrics
+from multilingual_eval.datasets.xquad import get_xquad
 
 
 def evaluate_any_task(
@@ -46,7 +49,9 @@ def evaluate_any_task(
     return prefix_dictionary(metric_fn(all_results), prefix)
 
 
-def evaluate_token_classification(model, eval_dataloader, prefix="eval", metric_fn=None):
+def evaluate_token_classification(
+    model, eval_dataloader, prefix="eval", metric_fn=None, label_key="labels"
+):
     """
     Evaluates a model on a given dataloader
     """
@@ -57,7 +62,7 @@ def evaluate_token_classification(model, eval_dataloader, prefix="eval", metric_
     all_labels = None
     all_predictions = None
     for i, batch in enumerate(eval_dataloader):
-        labels = batch["labels"].numpy()
+        labels = batch[label_key].numpy()
         batch = bring_batch_to_model(batch, model)
 
         predictions = model(**batch, return_dict=True).logits
@@ -84,6 +89,7 @@ def evaluate_several_token_classification(
     overall_prefix=None,
     metric_fn=None,
     collator=None,
+    label_key="labels",
 ):
     """
     Evaluates a model on several datasets, also aggregates the metrics with prefix "avg".
@@ -101,7 +107,7 @@ def evaluate_several_token_classification(
     agg = defaultdict(lambda: 0)
     for dataloader, prefix in zip(dataloaders, prefixes):
         next_res = evaluate_token_classification(
-            model, dataloader, prefix=None, metric_fn=metric_fn
+            model, dataloader, prefix=None, metric_fn=metric_fn, label_key=label_key
         )
         for key, value in next_res.items():
             agg[key] += value
@@ -110,3 +116,134 @@ def evaluate_several_token_classification(
     res.update(prefix_dictionary({k: v / len(datasets) for k, v in agg.items()}, prefix="avg"))
 
     return prefix_dictionary(res, overall_prefix)
+
+
+def evaluate_xquad(
+    model,
+    tokenizer,
+    left_lang,
+    right_langs,
+    batch_size=16,
+    debug=False,
+    data_cache_dir=None,
+    log_in_wandb=False,
+):
+    oracle = QuestionAnsweringPipeline(
+        model=model, tokenizer=tokenizer, device=model.device, batch_size=batch_size
+    )
+
+    validation_datasets = list(
+        map(
+            list,
+            get_xquad(
+                right_langs,
+                tokenizer,
+                split="test",
+                limit=100 if debug else None,
+                datasets_cache_dir=data_cache_dir,
+                interleave=False,
+                preprocessing=False,
+            ),
+        )
+    )
+
+    source_validation_dataset = list(
+        get_xquad(
+            left_lang,
+            tokenizer,
+            split="test",
+            limit=100 if debug else None,
+            datasets_cache_dir=data_cache_dir,
+            preprocessing=False,
+        )
+    )
+
+    def normalize_text(s):
+        """Removing articles and punctuation, and standardizing whitespace are all typical text processing steps."""
+        import string, re
+
+        def remove_articles(text):
+            regex = re.compile(r"\b(a|an|the)\b", re.UNICODE)
+            return re.sub(regex, " ", text)
+
+        def white_space_fix(text):
+            return " ".join(text.split())
+
+        def remove_punc(text):
+            exclude = set(string.punctuation)
+            return "".join(ch for ch in text if ch not in exclude)
+
+        def lower(text):
+            return text.lower()
+
+        return white_space_fix(remove_articles(remove_punc(lower(s))))
+
+    def compute_f1(prediction, truth):
+        pred_tokens = normalize_text(prediction).split()
+        truth_tokens = normalize_text(truth).split()
+
+        # if either the prediction or the truth is no-answer then f1 = 1 if they agree, 0 otherwise
+        if len(pred_tokens) == 0 or len(truth_tokens) == 0:
+            return int(pred_tokens == truth_tokens)
+
+        common_tokens = set(pred_tokens) & set(truth_tokens)
+
+        # if there are no common tokens then f1 = 0
+        if len(common_tokens) == 0:
+            return 0
+
+        prec = len(common_tokens) / max(1, len(pred_tokens))
+        rec = len(common_tokens) / max(1, len(truth_tokens))
+
+        return 2 * (prec * rec) / max(1, prec + rec)
+
+    res = {}
+    agg = defaultdict(lambda: 0)
+    for lang, examples in zip(right_langs, validation_datasets):
+        predictions = oracle(
+            list(map(lambda y: {"question": y["question"], "context": y["context"]}, examples))
+        )
+
+        predictions = list(map(lambda x: x["answer"], predictions))
+        references = list(map(lambda x: x["answers"]["text"][0], examples))
+
+        results = {
+            "em": sum([int(x == y) for x, y in zip(predictions, references)]) / len(predictions),
+            "f1": sum([compute_f1(x, y) for x, y in zip(predictions, references)])
+            / len(predictions),
+        }
+
+        for key, value in results.items():
+            agg[key] += value
+        res.update(prefix_dictionary(results, lang))
+
+    res.update(
+        prefix_dictionary({k: v / len(validation_datasets) for k, v in agg.items()}, prefix="avg")
+    )
+    res = prefix_dictionary(res, "eval")
+
+    predictions = oracle(
+        list(
+            map(
+                lambda y: {"question": y["question"], "context": y["context"]},
+                source_validation_dataset,
+            )
+        )
+    )
+    predictions = list(map(lambda x: x["answer"], predictions))
+    references = list(map(lambda x: x["answers"]["text"][0], source_validation_dataset))
+
+    results = {
+        "em": sum(
+            [int(normalize_text(x) == normalize_text(y)) for x, y in zip(predictions, references)]
+        )
+        / len(predictions),
+        "f1": sum([compute_f1(x, y) for x, y in zip(predictions, references)]) / len(predictions),
+    }
+    res.update(prefix_dictionary(results, "eval_same"))
+
+    logging.info(res)
+    if log_in_wandb:
+        import wandb
+
+        wandb.log(res)

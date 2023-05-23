@@ -53,6 +53,7 @@ def realignment_training_loop(
     final_prefix="final",
     pretrained_model_fn=None,
     realignment_steps_by_finetuning=1,
+    label_key="labels",
 ):
     """
     Performs a training loop, with or without realignment
@@ -102,7 +103,7 @@ def realignment_training_loop(
         g.manual_seed(seed)
 
         def seed_worker(worker_id):
-            worker_seed = torch.initial_seed() % 2**32
+            worker_seed = torch.initial_seed() % 2 ** 32
             np.random.seed(worker_seed)
             random.seed(worker_seed)
 
@@ -296,11 +297,12 @@ def realignment_training_loop(
                 overall_prefix="eval",
                 metric_fn=metric_fn,
                 collator=data_collator,
+                label_key=label_key,
             )
             logging.info(res)
             if log_in_wandb:
                 wandb.log(res)
-        if same_language_evaluation_dataloader is not None:
+        if same_language_evaluation_dataset is not None:
             res = evaluate_token_classification(
                 model, same_language_evaluation_dataloader, prefix="eval_same", metric_fn=metric_fn
             )
@@ -344,11 +346,12 @@ def realignment_training_loop(
             overall_prefix=f"{final_prefix}_eval",
             metric_fn=metric_fn,
             collator=data_collator,
+            label_key=label_key,
         )
         logging.info(res)
         if log_in_wandb:
             wandb.log(res)
-    if same_language_evaluation_dataloader is not None:
+    if same_language_evaluation_dataset is not None:
         res = evaluate_token_classification(
             model,
             same_language_evaluation_dataloader,

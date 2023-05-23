@@ -1,6 +1,7 @@
 from typing import Union, List
 from datasets import interleave_datasets
 import evaluate
+import logging
 
 from multilingual_eval.datasets.data_utils import convert_dataset_to_iterable_dataset
 from multilingual_eval.datasets.span_alignment import SpanAligner
@@ -30,6 +31,7 @@ def get_question_answering_getter(
         n_epochs=1,
         max_length=128,
         stride=32,
+        preprocessing=True,
     ):
         """
         Load a question answering dataset for a given lang
@@ -80,16 +82,17 @@ def get_question_answering_getter(
         if n_epochs > 1:
             datasets = map(lambda x: convert_dataset_to_iterable_dataset(x, n_epochs), datasets)
 
-        datasets = list(
-            map(
-                lambda x: x.map(
-                    SpanAligner(tokenizer, max_length=max_length, stride=stride),
-                    batched=True,
-                    remove_columns=x.column_names,
-                ),
-                datasets,
+        if preprocessing:
+            datasets = list(
+                map(
+                    lambda x: x.map(
+                        SpanAligner(tokenizer, max_length=max_length, stride=stride),
+                        batched=True,
+                        remove_columns=x.column_names,
+                    ),
+                    datasets,
+                )
             )
-        )
 
         if lang_id is not None:
             datasets = list(
@@ -108,7 +111,7 @@ def get_question_answering_getter(
 
 
 def get_question_answering_metrics():
-    metric = evaluate.load("squad_v2")
+    metric = evaluate.load("squad")
 
     def compute_metric(p):
         return metric.compute(predictions=p["logits"], references=p["label_ids"])

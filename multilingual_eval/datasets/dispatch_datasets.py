@@ -6,7 +6,7 @@ from transformers import (
     DataCollatorForTokenClassification,
     AutoConfig,
 )
-from transformers.adapters import AutoAdapterModel, PfeifferInvConfig, PfeifferConfig
+
 
 from multilingual_eval.datasets.wikiann_ner import get_wikiann_ner, get_wikiann_metric_fn
 from multilingual_eval.datasets.xnli import get_xnli, xnli_metric_fn
@@ -46,7 +46,7 @@ def get_dataset_metric_fn(name):
         "xtreme.udpos": get_token_classification_metrics,
         "xnli": lambda: xnli_metric_fn,
         "pawsx": lambda: pawsx_metric_fn,
-        "xquad": get_question_answering_metrics,
+        "xquad": lambda: get_question_answering_metrics(),
     }[name]
 
 
@@ -91,6 +91,8 @@ def model_fn(task_name, with_realignment=False):
 
 
 def model_fn_with_adapter(task_name, langs=None, n_layers=1):
+    from transformers.adapters import AutoAdapterModel, PfeifferInvConfig, PfeifferConfig
+
     # Note: contrary to models created with model_fn,
     # realignment loss is computed from outside the model
     # because I'm tired of rewriting the definitions of models
