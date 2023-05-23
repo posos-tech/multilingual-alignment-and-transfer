@@ -205,9 +205,12 @@ class DatasetMapperForRealignment:
         new_aligned_right_ids = []
 
         for left_pos, left_token in enumerate(left_tokens):
+            if left_tokens.count(left_token) > 1:
+                continue
             for right_pos, right_token in enumerate(right_tokens):
                 if (
-                    left_token == right_token
+                    right_tokens.count(right_token) == 1
+                    and left_token == right_token
                     and left_pos not in aligned_left_ids
                     and right_pos not in aligned_right_ids
                 ):
