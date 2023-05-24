@@ -1,3 +1,6 @@
+import logging
+
+
 class SpanAligner:
 
     """
@@ -25,16 +28,51 @@ class SpanAligner:
         # Tokenize our examples with truncation and maybe padding, but keep the overflows using a stride. This results
         # in one example possible giving several features when a context is long, each of those features having a
         # context that overlaps a bit the context of the previous feature.
-        tokenized_examples = self.tokenizer(
-            examples["question"],
-            examples["context"],
-            truncation="only_second",
-            max_length=self.max_length,
-            stride=self.stride,
-            return_overflowing_tokens=True,
-            return_offsets_mapping=True,
-            padding="max_length" if self.max_length else False,
-        )
+
+        try:
+            tokenized_examples = self.tokenizer(
+                examples["question"],
+                examples["context"],
+                truncation="only_second",
+                max_length=self.max_length,
+                stride=self.stride,
+                return_overflowing_tokens=True,
+                return_offsets_mapping=True,
+                padding="max_length" if self.max_length else False,
+            )
+        except:
+            exclude_ids = []
+            for i, (question, context) in enumerate(zip(examples["question"], examples["context"])):
+                try:
+                    self.tokenizer(
+                        [question],
+                        [context],
+                        truncation="only_second",
+                        max_length=self.max_length,
+                        stride=self.stride,
+                        return_overflowing_tokens=True,
+                        return_offsets_mapping=True,
+                        padding="max_length" if self.max_length else False,
+                    )
+                except:
+                    logging.error(
+                        f"Error with example, will ignore it. question: {question} / context: {context}"
+                    )
+                    exclude_ids.append(i)
+            examples = {
+                k: [v[i] for i in range(len(v)) if i not in exclude_ids]
+                for k, v in examples.items()
+            }
+            tokenized_examples = self.tokenizer(
+                examples["question"],
+                examples["context"],
+                truncation="only_second",
+                max_length=self.max_length,
+                stride=self.stride,
+                return_overflowing_tokens=True,
+                return_offsets_mapping=True,
+                padding="max_length" if self.max_length else False,
+            )
 
         # Since one example might give us several features if it has a long context, we need a map from a feature to
         # its corresponding example. This key gives us just that.
