@@ -36,3 +36,11 @@ Create a `parameters.sh` file and fill according to the template provided in `sa
 Install the dependencies from the corresponding requirements that can be found in `reproduce_results`
 
 Then launch the script to reproduce the results which will be found in `reproduce_results` which is referenced by conference and year.
+
+## Runs
+
+XNLI dico (73 pairs): 4blmllpi, 0dfl7bnl, 7c8n1309, 61hr4knm
+
+test on XNLI with true multiparallel: kj8a75ut
+
+test on XQuad with true multiparallel: ye1jps8e
