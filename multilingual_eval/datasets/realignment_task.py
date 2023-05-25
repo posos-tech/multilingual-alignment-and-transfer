@@ -187,25 +187,15 @@ def get_multiparallel_pharaoh_dataset(
                     continue
 
                 yield i, {
-                    "left_tokens": left_tokens,
+                    "left_tokens": left_tokens[0],
                     "right_tokens": right_tokens,
-                    "aligned_left_ids": left_positions,
+                    "aligned_left_ids": left_positions[0],
                     "aligned_right_ids": right_positions,
                 }
         if repeat:
             yield from multiparallel_reader()
 
-    datasets = [[] for _ in range(len(translation_files))]
-    for i, sample in multiparallel_reader():
-        for j in range(len(translation_files)):
-            datasets[j].append((i, {key: value[j] for key, value in sample.items()}))
-
-    logging.info(datasets[0][0])
-
-    def generator(dataset):
-        yield from iter(dataset)
-
-    return [IterableDataset(ExamplesIterable(generator, {"dataset": ds})) for ds in datasets]
+    return IterableDataset(ExamplesIterable(multiparallel_reader, {}))
 
 
 class AdaptAlignmentToTokenizerMapper:
@@ -216,7 +206,11 @@ class AdaptAlignmentToTokenizerMapper:
     """
 
     def __init__(
-        self, tokenizer, max_length=None, remove_underscore_if_roberta=True, first_subword_only=True
+        self,
+        tokenizer,
+        max_length=None,
+        remove_underscore_if_roberta=True,
+        first_subword_only=True,
     ):
         self.tokenizer = tokenizer
         self.max_length = max_length
@@ -301,7 +295,6 @@ class AdaptAlignmentToTokenizerMapper:
                 result_sample = {key: [] for key in tokenized_inputs if key in result}
             delta = 0
             for j, word_idx in enumerate(word_ids):
-
                 if self.remove_underscore:
                     if tokenized_inputs["input_ids"][i][j] == self.underscore_id:
                         delta += -1
@@ -382,6 +375,67 @@ class AdaptAlignmentToTokenizerMapper:
         )
 
 
+class MultiparallelAdaptAlignmentToTokenizerMapper(AdaptAlignmentToTokenizerMapper):
+    def __call__(self, examples):
+        # Not really optimal but simpler to implement
+        results = []
+
+        n_langs = len(examples["right_tokens"][0])
+        batch_size = len(examples["right_tokens"])
+
+        for i in range(n_langs):
+            new_examples = {
+                k: list(map(lambda x: x[i], v)) if k in ["right_tokens", "aligned_right_ids"] else v
+                for k, v in examples.items()
+            }
+            results.append(super().__call__(new_examples))
+
+        alignment_left_ids = []
+        alignment_right_ids = []
+        alignment_nb = []
+
+        for i_batch in range(batch_size):
+            left_ids = list(
+                set(results[0]["alignment_left_ids"][i_batch]).intersection(
+                    *[results[j]["alignment_left_ids"][i_batch] for j in range(1, n_langs)]
+                )
+            )
+            id_position = {idx: i for i, idx in enumerate(left_ids)}
+            right_ids = [[None] * len(id_position) for _ in range(n_langs)]
+            for i_lang in range(n_langs):
+                for left_id, right_id in zip(
+                    results[i_lang]["alignment_left_ids"][i_batch],
+                    results[i_lang]["alignment_right_ids"][i_batch],
+                ):
+                    if left_id in id_position:
+                        right_ids[i_lang][id_position[left_id]] = right_id
+
+            alignment_left_ids.append(left_ids)
+            alignment_right_ids.append(right_ids)
+            alignment_nb.append(len(left_ids))
+
+        # Do not forget that it is batched !
+        return {
+            **{k: v for k, v in results[0].items() if k.startswith("left_")},
+            **{
+                k: list(map(list, zip(*map(lambda x: x[k], results))))
+                for k in results[0].keys()
+                if k.startswith("right_")
+            },  # zip(*list) is like a transposition
+            "alignment_left_ids": alignment_left_ids,
+            "alignment_right_ids": alignment_right_ids,
+            "alignment_left_positions": results[0]["alignment_left_positions"],
+            "alignment_right_positions": list(
+                map(list, zip(*map(lambda x: x["alignment_right_positions"], results)))
+            ),
+            "alignment_nb": alignment_nb,
+            "alignment_left_length": results[0]["alignment_left_length"],
+            "alignment_right_length": list(
+                map(list, zip(*map(lambda x: x["alignment_right_length"], results)))
+            ),
+        }
+
+
 def get_realignment_dataset_for_one_pair(
     tokenizer,
     translation_file: str,
@@ -425,28 +479,43 @@ def get_multiparallel_realignment_dataset(
     left_id=None,
     right_id=None,
 ):
-
-    datasets = get_multiparallel_pharaoh_dataset(
+    raw_dataset = get_multiparallel_pharaoh_dataset(
         translation_files, alignment_files, ignore_identical=ignore_identical
-    )
-    mapper = AdaptAlignmentToTokenizerMapper(
+    ).shuffle(seed=seed, buffer_size=10_000)
+    mapper = MultiparallelAdaptAlignmentToTokenizerMapper(
         tokenizer, max_length=max_length, first_subword_only=first_subowrd_only
     )
+    dataset = raw_dataset.map(
+        mapper,
+        batched=True,
+        remove_columns=["aligned_left_ids", "aligned_right_ids", "left_tokens", "right_tokens"],
+    ).filter(lambda x: len(x["alignment_left_ids"]) > 0)
+
+    def get_map_fn(i):
+        def the_map_fn(x):
+            return {
+                k: v[i]
+                for k, v in x.items()
+                if k.startswith("right_") or k.startswith("alignment_right_")
+            }
+
+        return the_map_fn
+
     datasets = [
         dataset.map(
-            mapper,
-            batched=True,
-            remove_columns=["aligned_left_ids", "aligned_right_ids", "left_tokens", "right_tokens"],
-        ).filter(lambda x: len(x["alignment_left_ids"]) > 0)
-        for dataset in datasets
+            get_map_fn(i),
+            batched=False,
+        )
+        for i in range(len(translation_files))
     ]
+
     if left_id is not None:
-        datasets = [dataset.map(lambda x: {**x, "left_lang_id": [left_id]}) for dataset in datasets]
+        datasets = [ds.map(lambda x: {**x, "left_lang_id": [left_id]}) for ds in datasets]
     if right_id is not None:
         datasets = [
-            dataset.map(lambda x: {**x, "right_lang_id": [right_id]}) for dataset in datasets
+            ds.map(lambda x: {**x, "right_lang_id": [idx]}) for ds, idx in zip(datasets, right_id)
         ]
-    return [dataset.with_format("torch") for dataset in datasets]
+    return [ds.with_format("torch") for ds in datasets]
 
 
 def get_multilingual_realignment_dataset(
