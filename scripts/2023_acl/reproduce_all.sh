@@ -12,7 +12,7 @@ CACHE_DIR=$DATA_DIR/cache/datasets
 OPUS_DIR=$DATA_DIR/opus100
 MULTIUN_DIR=$DATA_DIR/multi_un
 MUSE_DIR=$DATA_DIR/muse_dictionaries
-AWESOME_MODEL_DIR=$DATA_DIR/awesome-without-co
+AWESOME_MODEL_DIR=$DATA_DIR/awesome-models
 TRANSLATION_DIR=$DATA_DIR/translation
 FASTALIGN_DIR=$DATA_DIR/fastalign
 DICOALIGN_DIR=$DATA_DIR/dico-align
@@ -89,9 +89,6 @@ if [ ! -d $DATA_DIR/venvs/awesome-align ]; then
     deactivate
     cd ../..
 fi
-
-
-exit 0
 
 
 for lang in $langs; do
