@@ -101,8 +101,15 @@ for lang in $langs; do
     mkdir -p $DICOALIGN_DIR/opus100
     mkdir -p $AWESOME_DIR/opus100
 
+    pair=$(python -c "print('-'.join(sorted(['en', '$lang'])))")
+
     # Create FastAlign-compatible tokenized translation dataset
-    python scripts/31_prepare_translation_dataset.py en $lang $OPUS_DIR $TRANSLATION_DIR/opus100/en-$lang.tokenized.train.txt
+    python subscripts/prepare_pharaoh_dataset.py \
+        $OPUS_DIR/$pair/opus.$pair-train.en \
+        $OPUS_DIR/$pair/opus.$pair-train.$lang \
+        $TRANSLATION_DIR/opus100/en-$lang.tokenized.train.txt \
+        --left_lang en --right_lang $lang
+
 
     # Align with FastAlign
     if [ ! -f $FASTALIGN_DIR/opus100/en-$lang.train ]; then
@@ -130,9 +137,14 @@ for lang in $multi_un_langs; do
     mkdir -p $DICOALIGN_DIR/multi_un
     mkdir -p $AWESOME_DIR/multi_un
 
+    pair=$(python -c "print('-'.join(sorted(['en', '$lang'])))")
+
     # Create FastAlign-compatible tokenized translation dataset
-    python scripts/31_prepare_translation_dataset.py en $lang $MULTIUN_DIR $TRANSLATION_DIR/multi_un/en-$lang.tokenized.train.txt \
-        --filename_template %s-%s.short.%s
+    python subscripts/prepare_pharaoh_dataset.py \
+        $OPUS_DIR/$pair/$pair.short.en \
+        $OPUS_DIR/$pair/$pair.short.$lang \
+        $TRANSLATION_DIR/multi_un/en-$lang.tokenized.train.txt \
+        --left_lang en --right_lang $lang
 
     # Align with FastAlign
     if [ ! -f $FASTALIGN_DIR/multi_un/en-$lang.train ]; then
