@@ -91,10 +91,12 @@ class DatasetMapperForRealignment:
                 f"DatasetMapperForRealignment: segmenter is None whereas zh is one of the two languages passed. Will default to RegexTokenizer"
             )
         self.left_tokenizer = LanguageSpecificTokenizer(
-            specific_segmenter=zh_segmenter if left_key == "zh" else None
+            lang=left_key,
+            zh_segmenter=zh_segmenter
         )
         self.right_tokenizer = LanguageSpecificTokenizer(
-            specific_segmenter=zh_segmenter if right_key == "zh" else None
+            lang=right_key,
+            zh_segmenter=zh_segmenter
         )
 
         if dico is None:

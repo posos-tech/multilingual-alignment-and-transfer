@@ -214,15 +214,19 @@ class LanguageSpecificTokenizer:
     otherwise, it uses the RegexTokenizer
     """
 
-    def __init__(self, specific_segmenter: Optional[StanfordSegmenter] = None, thai=False):
+    def __init__(self, lang=None, zh_segmenter=None):
         """
         - zh_segmenter: optional, but if not provided (and started with a with-statement), will default
         to regex tokenizer when tokenizing chinese (not recommended)
         """
-        if thai:
+        if lang=="th":
             self._tokenizer = ThaiTokenizer()
-        elif specific_segmenter:
-            self._tokenizer = ChineseTokenizer(specific_segmenter)
+        elif lang=="zh":
+            if zh_segmenter is not None:
+                self._tokenizer = ChineseTokenizer(zh_segmenter)
+            else:
+                logging.warning(f"LanguageSpecificTokenizer for Chinese was not passed a zh_segmenter, will default to RegexTokenizer based on whitespaces.")
+                self._tokenizer = RegexTokenizer()
         else:
             self._tokenizer = RegexTokenizer()
 
