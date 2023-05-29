@@ -2,6 +2,8 @@
 
 set -e
 
+ADD_ARGS=$1
+
 source parameters.sh
 
 langs="ar es fr ru zh"
@@ -17,6 +19,7 @@ TRANSLATION_DIR=$DATA_DIR/translation
 FASTALIGN_DIR=$DATA_DIR/fastalign
 DICOALIGN_DIR=$DATA_DIR/dico-align
 AWESOME_DIR=$DATA_DIR/awesome-align
+RESULT_DIR=$DATA_DIR/raw_results
 
 mkdir -p $CACHE_DIR
 mkdir -p $OPUS_DIR
@@ -160,3 +163,130 @@ for lang in $multi_un_langs; do
         deactivate
     fi
 done
+
+exit 0
+
+
+if [ ! -f $RESULT_DIR/finetuning_and_alignment_weak.csv ]; then
+    python scripts/2023_acl/finetuning_and_alignment.py \
+        $TRANSLATION_DIR/opus100 \
+        $DICOALIGN_DIR/opus100 \
+        --cache_dir $CACHE_DIR \
+        --output_file $RESULT_DIR/finetuning_and_alignment_weak.csv $ADD_ARGS
+fi
+
+
+if [ ! -f $RESULT_DIR/finetuning_and_alignment_strong.csv ]; then
+    python scripts/2023_acl/finetuning_and_alignment.py \
+        $TRANSLATION_DIR/opus100 \
+        $DICOALIGN_DIR/opus100 \
+        --cache_dir $CACHE_DIR \
+        --strong_alignment \
+        --output_file $RESULT_DIR/finetuning_and_alignment_strong.csv $ADD_ARGS
+fi
+
+if [ ! -f $RESULT_DIR/controlled_realignment_opus100_tagging.csv ]; then
+    python scripts/2023_acl/controlled_realignment.py \
+        --translation_dir $TRANSLATION_DIR/opus100 \
+        --fastalign_dir $FASTALIGN_DIR/opus100 \
+        --dico_dir $DICOALIGN_DIR/opus100 \
+        --awesome_dir $AWESOME_DIR/opus100 \
+        --tasks wikiann udpos \
+        --cache_dir $CACHE_DIR \
+        --n_epochs 5 \
+        --output_file $RESULT_DIR/controlled_realignment_opus100_tagging.csv $ADD_ARGS
+fi 
+
+if [ ! -f $RESULT_DIR/controlled_realignment_opus100_xnli.csv ]; then
+    python scripts/2023_acl/controlled_realignment.py \
+        --translation_dir $TRANSLATION_DIR/opus100 \
+        --fastalign_dir $FASTALIGN_DIR/opus100 \
+        --dico_dir $DICOALIGN_DIR/opus100 \
+        --awesome_dir $AWESOME_DIR/opus100 \
+        --strategies baseline during_dico before_dico \
+        --tasks xnli \
+        --cache_dir $CACHE_DIR \
+        --n_epochs 2 \
+        --output_file $RESULT_DIR/controlled_realignment_opus100_xnli.csv $ADD_ARGS
+fi 
+
+if [ ! -f $RESULT_DIR/controlled_realignment_multi_un_tagging.csv ]; then
+    python scripts/2023_acl/controlled_realignment.py \
+        --translation_dir $TRANSLATION_DIR/multi_un \
+        --fastalign_dir $FASTALIGN_DIR/multi_un \
+        --dico_dir $DICOALIGN_DIR/multi_un \
+        --awesome_dir $AWESOME_DIR/multi_un \
+        --tasks wikiann udpos \
+        --cache_dir $CACHE_DIR \
+        --n_epochs 5 \
+        --output_file $RESULT_DIR/controlled_realignment_multi_un_tagging.csv $ADD_ARGS
+fi 
+
+if [ ! -f $RESULT_DIR/controlled_realignment_multi_un_xnli.csv ]; then
+    python scripts/2023_acl/controlled_realignment.py \
+        --translation_dir $TRANSLATION_DIR/multi_un \
+        --fastalign_dir $FASTALIGN_DIR/multi_un \
+        --dico_dir $DICOALIGN_DIR/multi_un \
+        --awesome_dir $AWESOME_DIR/multi_un \
+        --strategies baseline during_dico before_dico \
+        --tasks xnli \
+        --cache_dir $CACHE_DIR \
+        --n_epochs 2 \
+        --output_file $RESULT_DIR/controlled_realignment_multi_un_xnli.csv $ADD_ARGS
+fi 
+
+if [ ! -f $RESULT_DIR/controlled_realignment_opus100_tagging_large_baseline.csv ]; then
+    python scripts/2023_acl/controlled_realignment.py \
+        --translation_dir $TRANSLATION_DIR/opus100 \
+        --fastalign_dir $FASTALIGN_DIR/opus100 \
+        --dico_dir $DICOALIGN_DIR/opus100 \
+        --awesome_dir $AWESOME_DIR/opus100 \
+        --stragegies baseline \
+        --models xlm-roberta-large \
+        --tasks wikiann udpos \
+        --cache_dir $CACHE_DIR \
+        --n_epochs 5 \
+        --output_file $RESULT_DIR/controlled_realignment_opus100_tagging_large_baseline.csv $ADD_ARGS
+fi 
+
+if [ ! -f $RESULT_DIR/controlled_realignment_opus100_xnli_large_baseline.csv ]; then
+    python scripts/2023_acl/controlled_realignment.py \
+        --translation_dir $TRANSLATION_DIR/opus100 \
+        --fastalign_dir $FASTALIGN_DIR/opus100 \
+        --dico_dir $DICOALIGN_DIR/opus100 \
+        --awesome_dir $AWESOME_DIR/opus100 \
+        --stragegies baseline \
+        --models xlm-roberta-large \
+        --tasks xnli \
+        --cache_dir $CACHE_DIR \
+        --n_epochs 2 \
+        --output_file $RESULT_DIR/controlled_realignment_opus100_xnli_large_baseline.csv $ADD_ARGS
+fi 
+
+if [ ! -f $RESULT_DIR/controlled_realignment_multi_un_tagging_large_baseline.csv ]; then
+    python scripts/2023_acl/controlled_realignment.py \
+        --translation_dir $TRANSLATION_DIR/multi_un \
+        --fastalign_dir $FASTALIGN_DIR/multi_un \
+        --dico_dir $DICOALIGN_DIR/multi_un \
+        --awesome_dir $AWESOME_DIR/multi_un \
+        --stragegies baseline \
+        --models xlm-roberta-large \
+        --tasks wikiann udpos \
+        --cache_dir $CACHE_DIR \
+        --n_epochs 5 \
+        --output_file $RESULT_DIR/controlled_realignment_multi_un_tagging_large_baseline.csv $ADD_ARGS
+fi 
+
+if [ ! -f $RESULT_DIR/controlled_realignment_multi_un_xnli_large_baseline.csv ]; then
+    python scripts/2023_acl/controlled_realignment.py \
+        --translation_dir $TRANSLATION_DIR/multi_un \
+        --fastalign_dir $FASTALIGN_DIR/multi_un \
+        --dico_dir $DICOALIGN_DIR/multi_un \
+        --awesome_dir $AWESOME_DIR/multi_un \
+        --stragegies baseline \
+        --models xlm-roberta-large \
+        --tasks xnli \
+        --cache_dir $CACHE_DIR \
+        --n_epochs 2 \
+        --output_file $RESULT_DIR/controlled_realignment_multi_un_xnli_large_baseline.csv $ADD_ARGS
+fi 
