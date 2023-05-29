@@ -12,7 +12,7 @@ import logging
 sys.path.append(os.curdir)
 
 from multilingual_eval.tokenization.chinese_segmenter import StanfordSegmenter
-from multilingual_eval.utils import RegexTokenizer, ChineseTokenizer
+from multilingual_eval.utils import LanguageSpecificTokenizer
 from multilingual_eval.utils import count_lines
 
 if __name__ == "__main__":
@@ -21,41 +21,20 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("left_lang")
-    parser.add_argument("right_lang")
-    parser.add_argument("input_dir")
+    parser.add_argument("left_file")
+    parser.add_argument("right_file")
     parser.add_argument("output_file")
-    parser.add_argument("--cache_dir", type=str, default=None)
-    parser.add_argument("--overwrite", action="store_true", dest="overwrite")
-    parser.add_argument(
-        "--no-sort",
-        action="store_false",
-        dest="sort",
-        help="to use if left_lang and right_lang must not be sorted alphabetically in the files prefix",
-    )
-    parser.add_argument("--filename_template", type=str, default="opus.%s-%s-train.%s")
-    parser.set_defaults(overwrite=False, sort=True)
+    parser.add_argument("--left_lang", type=str, default=None)
+    parser.add_argument("--right_lang", type=str, default=None)
+    parser.add_argument("--overwrite", action="store_true", dest="overwrite", help="Option to restart from where it stopped")
+    parser.set_defaults(overwrite=False)
     args = parser.parse_args()
 
     left_lang = args.left_lang
     right_lang = args.right_lang
 
-    first_lang, second_lang = (
-        (left_lang, right_lang)
-        if not args.sort or left_lang < right_lang
-        else (right_lang, left_lang)
-    )
-
-    left_lang_file = os.path.join(
-        args.input_dir,
-        f"{first_lang}-{second_lang}",
-        args.filename_template % (first_lang, second_lang, left_lang),
-    )
-    right_lang_file = os.path.join(
-        args.input_dir,
-        f"{first_lang}-{second_lang}",
-        args.filename_template % (first_lang, second_lang, right_lang),
-    )
+    left_lang_file = args.left_file
+    right_lang_file = args.right_file
 
     # Compute number of lines already parsed if not overriding
     if not args.overwrite and os.path.isfile(args.output_file):
@@ -78,8 +57,8 @@ if __name__ == "__main__":
             _ = next(left_reader)
             _ = next(right_reader)
 
-        left_tokenizer = ChineseTokenizer(zh_segmenter) if left_lang == "zh" else RegexTokenizer()
-        right_tokenizer = ChineseTokenizer(zh_segmenter) if right_lang == "zh" else RegexTokenizer()
+        left_tokenizer = LanguageSpecificTokenizer(lang=left_lang, zh_segmenter=zh_segmenter)
+        right_tokenizer = LanguageSpecificTokenizer(lang=right_lang, zh_segmenter=zh_segmenter)
 
         for left_line, right_line in zip(left_reader, right_reader):
             left_tokens = left_tokenizer.tokenize(left_line)
