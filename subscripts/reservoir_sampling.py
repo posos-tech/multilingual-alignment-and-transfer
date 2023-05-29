@@ -29,7 +29,7 @@ if __name__ == "__main__":
     assert len(input_files) == len(output_files)
 
     with ExitStack() as stack:
-        file_readers = [stack.enter_context(fname, "rb") for fname in input_files]
+        file_readers = [stack.enter_context(open(fname, "rb")) for fname in input_files]
         positions = [f.tell() for f in file_readers]
 
         for i, lines in enumerate(zip(*file_readers)):
@@ -41,7 +41,7 @@ if __name__ == "__main__":
                     line_positions[j] = positions
             positions = [f.tell() for f in file_readers]
 
-        writers = [stack.enter_context(fname, "wb") for fname in output_files]
+        writers = [stack.enter_context(open(fname, "wb")) for fname in output_files]
         for pos_list in line_positions:
             for f, pos in zip(file_readers, pos_list):
                 f.seek(pos)
