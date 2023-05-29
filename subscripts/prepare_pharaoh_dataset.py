@@ -48,6 +48,8 @@ if __name__ == "__main__":
     with ExitStack() as stack:
         if "zh" in [left_lang, right_lang]:
             zh_segmenter = stack.enter_context(StanfordSegmenter())
+        else:
+            zh_segmenter = None
         left_reader = stack.enter_context(open(left_lang_file, "r"))
         right_reader = stack.enter_context(open(right_lang_file, "r"))
         writer = stack.enter_context(open(args.output_file, "w" if args.overwrite else "a"))
