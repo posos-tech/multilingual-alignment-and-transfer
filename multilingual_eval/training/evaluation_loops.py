@@ -127,6 +127,7 @@ def evaluate_xquad(
     debug=False,
     data_cache_dir=None,
     log_in_wandb=False,
+    result_store=None,
 ):
     oracle = QuestionAnsweringPipeline(
         model=model, tokenizer=tokenizer, device=model.device, batch_size=batch_size
@@ -247,3 +248,5 @@ def evaluate_xquad(
         import wandb
 
         wandb.log(res)
+    if result_store:
+        result_store.log(res)

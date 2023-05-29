@@ -23,6 +23,7 @@ def epoch_loop(
     realignment_steps_by_finetuning=1,
     logging_steps=100,
     log_in_wandb=False,
+    result_store=None,
     nb_iter=None,
     realignment_coef=1.0,
     realignment_step_callbacks=None,
@@ -112,7 +113,6 @@ def epoch_loop(
                     ) * outputs.loss
 
         if batch is not None:
-
             if parallelism and torch.cuda.device_count() > 1:
                 outputs = torch.nn.parallel.data_parallel(model, None, module_kwargs=batch)
                 tmp_loss = outputs["loss"] if isinstance(outputs, dict) else outputs[0]
@@ -145,7 +145,6 @@ def epoch_loop(
             progress_bar.update()
 
             if logging_steps is not None and (i // task_accumulation_steps) % logging_steps == 0:
-
                 if training_state is not None:
                     res = training_state.log_state()
                 else:
@@ -163,7 +162,16 @@ def epoch_loop(
                             "task_loss": task_loss,
                         }
                     )
-    
+                if result_store:
+                    result_store.log(
+                        {
+                            **(res if res is not None else {"train_step": batch_seen}),
+                            "train_loss": total_loss,
+                            "realignment_loss": realignment_loss,
+                            "task_loss": task_loss,
+                        }
+                    )
+
     progress_bar.close()
 
     return training_state
@@ -216,12 +224,10 @@ def fine_tuning_loop(
     n_epochs = 0
 
     for i in range(steps):
-
         loss = 0
         optimizer.zero_grad()
 
         for j in range(accumulation_steps):
-
             iterator, batch, restarted = get_next_or_restart(dataloader, iterator, name=task_name)
 
             if restarted:

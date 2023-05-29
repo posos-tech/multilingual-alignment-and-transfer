@@ -40,6 +40,7 @@ def realignment_training_loop(
     accumulation_steps=1,
     logging_steps=100,
     log_in_wandb=False,
+    result_store=None,
     metric_fn=None,
     realignment_coef=0.1,
     realignment_coef_scheduler=None,
@@ -103,7 +104,7 @@ def realignment_training_loop(
         g.manual_seed(seed)
 
         def seed_worker(worker_id):
-            worker_seed = torch.initial_seed() % 2 ** 32
+            worker_seed = torch.initial_seed() % 2**32
             np.random.seed(worker_seed)
             random.seed(worker_seed)
 
@@ -215,7 +216,6 @@ def realignment_training_loop(
                 else model.__class__.from_pretrained(cache_path, ignore_mismatched_sizes=True)
             )
         else:
-
             training_state = epoch_loop(
                 model,
                 before_optimizer,
@@ -224,6 +224,7 @@ def realignment_training_loop(
                 task_accumulation_steps=1,
                 logging_steps=logging_steps,
                 log_in_wandb=log_in_wandb,
+                result_store=result_store,
                 nb_iter=realignment_steps_before,
                 realignment_step_callbacks=realignment_step_callbacks,
                 training_state=training_state,
@@ -234,6 +235,8 @@ def realignment_training_loop(
             res = training_state.log_state()
             if log_in_wandb:
                 wandb.log(res)
+            if result_store:
+                result_store.log(res)
 
             if cache_path is not None:
                 logging.info(f"Saving realigned model: {model_hash}")
@@ -260,7 +263,6 @@ def realignment_training_loop(
         callback(model)
 
     for i in range(n_epochs):
-
         training_state = epoch_loop(
             model,
             optimizer,
@@ -272,6 +274,7 @@ def realignment_training_loop(
             task_accumulation_steps=accumulation_steps,
             logging_steps=logging_steps,
             log_in_wandb=log_in_wandb,
+            result_store=result_store,
             realignment_coef=realignment_coef
             if realignment_coef_scheduler is None
             else realignment_coef_scheduler(i),
@@ -286,6 +289,8 @@ def realignment_training_loop(
         res = training_state.log_state()
         if log_in_wandb:
             wandb.log(res)
+        if result_store:
+            result_store.log(res)
 
         if evaluation_datasets is not None:
             res = evaluate_several_token_classification(
@@ -302,6 +307,8 @@ def realignment_training_loop(
             logging.info(res)
             if log_in_wandb:
                 wandb.log(res)
+            if result_store:
+                result_store.log(res)
         if same_language_evaluation_dataset is not None:
             res = evaluate_token_classification(
                 model, same_language_evaluation_dataloader, prefix="eval_same", metric_fn=metric_fn
@@ -309,6 +316,8 @@ def realignment_training_loop(
             logging.info(res)
             if log_in_wandb:
                 wandb.log(res)
+            if result_store:
+                result_store.log(res)
 
     if strategy == "after":
         after_optimizer = Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
@@ -321,6 +330,7 @@ def realignment_training_loop(
             task_accumulation_steps=accumulation_steps,
             logging_steps=logging_steps,
             log_in_wandb=log_in_wandb,
+            result_store=result_store,
             nb_iter=(
                 len(task_dataloader) * n_epochs
                 if nb_realignment_steps_before is None
@@ -333,6 +343,8 @@ def realignment_training_loop(
         res = training_state.log_state()
         if log_in_wandb:
             wandb.log(res)
+        if result_store:
+            result_store.log(res)
         for callback in epoch_callbacks:
             callback(model)
 
@@ -351,6 +363,8 @@ def realignment_training_loop(
         logging.info(res)
         if log_in_wandb:
             wandb.log(res)
+        if result_store:
+            result_store.log(res)
     if same_language_evaluation_dataset is not None:
         res = evaluate_token_classification(
             model,
@@ -361,6 +375,8 @@ def realignment_training_loop(
         logging.info(res)
         if log_in_wandb:
             wandb.log(res)
+        if result_store:
+            result_store.log(res)
 
     if return_model_hash and use_caching:
         return model_hash
