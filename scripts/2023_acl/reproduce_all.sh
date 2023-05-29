@@ -47,8 +47,7 @@ bash download_resources/opus100.sh $OPUS_DIR $langs
 bash download_resources/multi_un.sh $MULTIUN_DIR
 
 # Sample 1B for each lang pair of multi-un
-multi_un_langs="ar es fr ru zh"
-for lang in $multi_un_langs; do
+for lang in $langs; do
 
     pair=$(python -c "print('-'.join(sorted(['en', '$lang'])))")
 
@@ -90,6 +89,10 @@ if [ ! -d $DATA_DIR/venvs/awesome-align ]; then
     deactivate
     cd ../..
 fi
+
+
+exit 0
+
 
 for lang in $langs; do
     echo "parsing lang $lang for opus-100"

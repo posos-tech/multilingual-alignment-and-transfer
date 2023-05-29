@@ -1,8 +1,13 @@
+"""
+Performs reservoir sampling of the lines in a list of parallel files
+(meaning that the same lines from each input files must be sampled together)
+"""
+
 import random
+from contextlib import ExitStack
 
 
 if __name__ == "__main__":
-
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -23,49 +28,22 @@ if __name__ == "__main__":
 
     assert len(input_files) == len(output_files)
 
-    class FileList:
-        def __init__(self, fnames: list, mode="r"):
-            self.fnames = fnames
-            self.mode = mode
+    with ExitStack() as stack:
+        file_readers = [stack.enter_context(fname, "rb") for fname in input_files]
+        positions = [f.tell() for f in file_readers]
 
-        def __enter__(self):
-            self.files = list(map(lambda x: open(x, self.mode), self.fnames))
-            return self
-
-        def __exit__(self, exc_type, exc_value, exc_traceback):
-            for f in self.files:
-                f.close()
-
-        def __iter__(self):
-            for lines in zip(*self.files):
-                yield list(lines)
-
-        def tell(self):
-            return [f.tell() for f in self.files]
-
-        def seek(self, positions: list):
-            for f, pos in zip(self.files, positions):
-                f.seek(pos)
-
-        def readlines(self):
-            return [f.readline() for f in self.files]
-
-        def write(self, lines: list):
-            for f, line in zip(self.files, lines):
-                f.write(line)
-
-    with FileList(input_files, "rb") as files_reader:
-        positions = files_reader.tell()
-        for i, lines in enumerate(files_reader):
+        for i, lines in enumerate(zip(*file_readers)):
             if i < args.num_samples:
                 line_positions.append(positions)
             else:
                 j = random.randrange(i + 1)
                 if j < args.num_samples:
                     line_positions[j] = positions
-            positions = files_reader.tell()
+            positions = [f.tell() for f in file_readers]
 
-        with FileList(output_files, "wb") as files_writer:
-            for pos_list in line_positions:
-                files_reader.seek(pos_list)
-                files_writer.write(files_reader.readlines())
+        writers = [stack.enter_context(fname, "wb") for fname in output_files]
+        for pos_list in line_positions:
+            for f, pos in zip(file_readers, pos_list):
+                f.seek(pos)
+            for writer, reader in zip(writers, file_readers):
+                writer.write(reader.readline())
