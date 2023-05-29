@@ -113,19 +113,19 @@ for lang in $langs; do
 
     # Align with FastAlign
     if [ ! -f $FASTALIGN_DIR/opus100/en-$lang.train ]; then
-        mkdir -p $FASTALIGN_DIR/opus100/fastalign/en-$lang
-        bash scripts/25_fast_align.sh $TRANSLATION_DIR/opus100/en-$lang.tokenized.train.txt $FASTALIGN_DIR/opus100/fastalign/en-$lang
-        mv $FASTALIGN_DIR/opus100/fastalign/en-$lang/symmetrized.align $FASTALIGN_DIR/opus100/en-$lang.train
+        bash scripts/word_align_with_fastalign.sh $TRANSLATION_DIR/opus100/en-$lang.tokenized.train.txt $FASTALIGN_DIR/opus100/en-$lang.train
     fi
 
     # Align with bilingual dictionaries
     if [ ! -f $DICOALIGN_DIR/opus100/en-$lang.train ]; then
-        python scripts/32_dico_align.py $TRANSLATION_DIR/opus100/en-$lang.tokenized.train.txt $MUSE_DIR en $lang $DICOALIGN_DIR/opus100/en-$lang.train
+        python scripts/word_align_with_dictionary.py $TRANSLATION_DIR/opus100/en-$lang.tokenized.train.txt $MUSE_DIR en $lang $DICOALIGN_DIR/opus100/en-$lang.train
     fi
 
     # Align with AWESOME-align
     if [ ! -f $AWESOME_DIR/opus100/en-$lang.train ]; then
-        bash scripts/33_awesome_align.sh $TRANSLATION_DIR/opus100/en-$lang.tokenized.train.txt $AWESOME_DIR/opus100/en-$lang.train $AWESOME_MODEL_DIR/model_without_co $DATA_DIR
+        source $DATA_DIR/venvs/awesome-align/bin/activate
+        bash scripts/word_align_with_awesome.sh $TRANSLATION_DIR/opus100/en-$lang.tokenized.train.txt $AWESOME_DIR/opus100/en-$lang.train $AWESOME_MODEL_DIR/model_without_co
+        deactivate
     fi
 
 done
@@ -148,18 +148,18 @@ for lang in $multi_un_langs; do
 
     # Align with FastAlign
     if [ ! -f $FASTALIGN_DIR/multi_un/en-$lang.train ]; then
-        mkdir -p $FASTALIGN_DIR/multi_un/fastalign/en-$lang
-        bash scripts/25_fast_align.sh $TRANSLATION_DIR/multi_un/en-$lang.tokenized.train.txt $FASTALIGN_DIR/multi_un/fastalign/en-$lang
-        mv $FASTALIGN_DIR/multi_un/fastalign/en-$lang/symmetrized.align $FASTALIGN_DIR/multi_un/en-$lang.train
+        bash scripts/word_align_with_fastalign.sh $TRANSLATION_DIR/multi_un/en-$lang.tokenized.train.txt $FASTALIGN_DIR/multi_un/en-$lang.train
     fi
 
     # Align with bilingual dictionaries
     if [ ! -f $DICOALIGN_DIR/multi_un/en-$lang.train ]; then
-        python scripts/32_dico_align.py $TRANSLATION_DIR/multi_un/en-$lang.tokenized.train.txt $MUSE_DIR en $lang $DICOALIGN_DIR/multi_un/en-$lang.train
+        python scripts/word_align_with_dictionary.py $TRANSLATION_DIR/multi_un/en-$lang.tokenized.train.txt $MUSE_DIR en $lang $DICOALIGN_DIR/multi_un/en-$lang.train
     fi
 
     # Align with AWESOME-align
     if [ ! -f $AWESOME_DIR/multi_un/en-$lang.train ]; then
-        bash scripts/33_awesome_align.sh $TRANSLATION_DIR/multi_un/en-$lang.tokenized.train.txt $AWESOME_DIR/multi_un/en-$lang.train $AWESOME_MODEL_DIR/model_without_co $DATA_DIR
+        source $DATA_DIR/venvs/awesome-align/bin/activate
+        bash scripts/word_align_with_awesome.sh $TRANSLATION_DIR/multi_un/en-$lang.tokenized.train.txt $AWESOME_DIR/multi_un/en-$lang.train $AWESOME_MODEL_DIR/model_without_co
+        deactivate
     fi
 done
