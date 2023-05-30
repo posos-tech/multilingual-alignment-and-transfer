@@ -23,6 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--direction", choices=["fwd", "bwd"], default="fwd")
     parser.add_argument("--lang", type=str, default="ar")
     parser.add_argument("--model", type=str, default="distilbert-base-multilingual-cased")
+    parser.add_argument("--cache_dir", type=str, default=None)
     args = parser.parse_args()
 
     task = args.task

@@ -27,6 +27,7 @@ if __name__ == "__main__":
     parser.add_argument("--moment", choices=["before", "after"], default="after")
     parser.add_argument("--direction", choices=["fwd", "bwd"], default="fwd")
     parser.add_argument("--langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"])
+    parser.add_argument("--cache_dir", type=str, default=None)
     args = parser.parse_args()
 
     task = args.task
