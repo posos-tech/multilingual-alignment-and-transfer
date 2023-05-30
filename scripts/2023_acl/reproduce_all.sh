@@ -30,6 +30,7 @@ mkdir -p $TRANSLATION_DIR
 mkdir -p $FASTALIGN_DIR
 mkdir -p $DICOALIGN_DIR
 mkdir -p $AWESOME_DIR
+mkdir -p $RESULT_DIR
 
 export DATA_DIR=$DATA_DIR
 export OPUS_DIR=$OPUS_DIR
