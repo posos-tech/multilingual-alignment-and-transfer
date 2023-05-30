@@ -17,6 +17,8 @@ if __name__ == "__main__":
     parser.add_argument("csv_files", nargs="+")
     parser.add_argument("--langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"])
     parser.add_argument("--tasks", type=str, nargs="+", default=["udpos", "wikiann", "xnli"])
+    parser.add_argument("--with_std", action="store_true", dest="with_std", help="Option to add standard deviation in table")
+    parser.set_defaults(with_std=False)
     args = parser.parse_args()
 
     df = pd.concat([pd.read_csv(fname) for fname in args.csv_files])
@@ -62,7 +64,9 @@ if __name__ == "__main__":
                     subdf[f"alignment_after_fwd_{lang}_{last_layer}"].dropna()
                     - subdf[f"alignment_before_fwd_{lang}_{last_layer}"].dropna()
                 ) / subdf[f"alignment_before_fwd_{lang}_{last_layer}"].dropna()
-                res += f" {np.mean(lang_drop):.2f}$_{{\pm {np.std(lang_drop):.2f}}}$"
+                res += f" {np.mean(lang_drop):.2f}"
+                if args.with_std:
+                    res += f"$_{{\pm {np.std(lang_drop):.2f}}}$"
             res += "\\\\\n"
         res += "\\hline"
 
