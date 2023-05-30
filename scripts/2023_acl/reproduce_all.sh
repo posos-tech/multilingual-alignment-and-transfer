@@ -41,10 +41,10 @@ export DICOALIGN_DIR=$DICOALIGN_DIR
 export AWESOME_DIR=$AWESOME_DIR
 
 # download muse dictionaries
-bash download_resources/muse_dictionaries.sh $MUSE_DIR $langs
+bash download_resources/muse_dictionaries.sh $MUSE_DIR "$langs"
 
 # download OPUS 100
-bash download_resources/opus100.sh $OPUS_DIR $langs
+bash download_resources/opus100.sh $OPUS_DIR "$langs"
 
 # download multi-un
 bash download_resources/multi_un.sh $MULTIUN_DIR
