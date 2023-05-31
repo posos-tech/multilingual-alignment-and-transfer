@@ -47,6 +47,7 @@ class DictResultStore(DefaultResultStore):
             self._result = defaultdict(lambda: [])
 
     def log(self, infos: dict):
+        super().log(infos)
         if self.single_value:
             self._result.update(infos)
         else:

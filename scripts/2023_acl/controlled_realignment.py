@@ -58,7 +58,7 @@ def train(
     else:
         method, aligner = method.split("_")
 
-    result_store = DefaultResultStore()
+    result_store = result_store or DefaultResultStore()
 
     if seed in seeds[5:]:
         logging.error(

@@ -27,7 +27,6 @@ from multilingual_eval.loggers import (
     DictResultStore,
     DefaultResultStore,
 )
-from multilingual_eval.utils import get_short_id
 from multilingual_eval.datasets.dispatch_datasets import (
     get_dataset_fn,
     get_dataset_metric_fn,
@@ -69,7 +68,7 @@ def train(
     task_name = config["task"]
     seed = config["seed"]
 
-    result_store = DefaultResultStore()
+    result_store = result_store or DefaultResultStore()
 
     cumul_batch_size = 32
     batch_size = get_batch_size(model_name, cumul_batch_size, large_gpu=large_gpu)
@@ -327,7 +326,7 @@ if __name__ == "__main__":
                     args.alignment_dir,
                     config=run_config,
                     sweep_config=sweep_config,
-                    zh_segmenter=zg_segmenter,
+                    zh_segmenter=zh_segmenter,
                     debug=args.debug,
                     large_gpu=args.large_gpu,
                     eval_layers=args.eval_layers,
