@@ -124,4 +124,4 @@ if __name__ == "__main__":
     plt.gca().add_artist(legend1)
     plt.xlabel("alignment score")
     plt.ylabel("cross-lingual generalization")
-    plt.savefig(args.ouptut_dir or f"{layer}_tolast_{moment}_fwd.pdf")
+    plt.savefig(args.output_file or f"{layer}_{moment}_fwd.pdf")

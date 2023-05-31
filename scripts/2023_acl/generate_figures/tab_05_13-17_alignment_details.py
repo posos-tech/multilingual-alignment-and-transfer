@@ -22,6 +22,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("csv_files", nargs="+")
     parser.add_argument("--task", type=str, default="udpos")
+    parser.add_argument("--left_lang", type=str, default="en")
+    parser.add_argument("--right_langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"])
     parser.add_argument("--models", 
         type=str,
         nargs="+", 
@@ -93,9 +95,9 @@ if __name__ == "__main__":
 
     res = f"{task_to_name[args.task]} & "
 
-    langs = ["same", "ar", "es", "fr", "ru", "zh"]
+    langs = ["same", *args.right_langs]
 
-    res += " & ".join(langs) + "\\\\\n"
+    res += " & ".join([args.left_lang, *args.right_langs]) + "\\\\\n"
     res += "\\hline\n"
 
     for model in sorted(models, key=model_to_rank.__getitem__):

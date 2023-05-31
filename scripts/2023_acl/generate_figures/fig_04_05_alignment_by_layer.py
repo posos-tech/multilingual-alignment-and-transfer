@@ -105,4 +105,4 @@ if __name__ == "__main__":
     plt.legend(loc="upper right")
     plt.xlabel("layer")
     plt.ylabel("retrieval accuracy")
-    plt.savefig(args.output_dir)
+    plt.savefig(args.output_file)

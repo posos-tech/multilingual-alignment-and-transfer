@@ -18,6 +18,7 @@ if __name__ == "__main__":
     parser.add_argument("--langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"])
     parser.add_argument("--tasks", type=str, nargs="+", default=["udpos", "wikiann", "xnli"])
     parser.add_argument("--with_std", action="store_true", dest="with_std", help="Option to add standard deviation in table")
+    parser.add_argument("--cache_dir", type=str, default=None)
     parser.set_defaults(with_std=False)
     args = parser.parse_args()
 
