@@ -242,7 +242,7 @@ if [ ! -f $RESULT_DIR/controlled_realignment_opus100_tagging_large_baseline.csv 
         --fastalign_dir $FASTALIGN_DIR/opus100 \
         --dico_dir $DICOALIGN_DIR/opus100 \
         --awesome_dir $AWESOME_DIR/opus100 \
-        --stragegies baseline \
+        --strategies baseline \
         --models xlm-roberta-large \
         --tasks wikiann udpos \
         --cache_dir $CACHE_DIR \
@@ -256,7 +256,7 @@ if [ ! -f $RESULT_DIR/controlled_realignment_opus100_xnli_large_baseline.csv ]; 
         --fastalign_dir $FASTALIGN_DIR/opus100 \
         --dico_dir $DICOALIGN_DIR/opus100 \
         --awesome_dir $AWESOME_DIR/opus100 \
-        --stragegies baseline \
+        --strategies baseline \
         --models xlm-roberta-large \
         --tasks xnli \
         --cache_dir $CACHE_DIR \
