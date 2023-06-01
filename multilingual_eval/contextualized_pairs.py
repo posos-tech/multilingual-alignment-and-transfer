@@ -48,6 +48,8 @@ def generate_pairs(
     dict_tuple=None,
     selected_source=None,
     selected_target=None,
+    max_pairs=None,
+    split="all",
 ):
 
     tokenizer = tokenizer or UniversalTokenizer()
@@ -56,7 +58,7 @@ def generate_pairs(
         forward_dict, backward_dict = dict_tuple
     else:
         forward_dict, backward_dict = get_dicos(
-            left_lang, right_lang, dico_path, left_voc=left_voc, right_voc=right_voc
+            left_lang, right_lang, dico_path, left_voc=left_voc, right_voc=right_voc, split=split
         )
 
     max_length_left = max(map(len, forward_dict))
@@ -66,7 +68,12 @@ def generate_pairs(
 
     selected_source = selected_source or set()
     selected_target = selected_target or set()
-    for sent_id, (left_sent, right_sent) in enumerate(tqdm(sentence_pair_generator)):
+    for sent_id, pair in enumerate(sentence_pair_generator):
+        if isinstance(pair, dict):
+            left_sent = pair[left_lang]
+            right_sent = pair[right_lang]
+        else:
+            left_sent, right_sent = pair
 
         if left_sent is None or right_sent is None:
             continue
@@ -140,6 +147,8 @@ def generate_pairs(
                 if avoid_repetition:
                     selected_source.add(word)
                     selected_target.add(tgt_word)
+            if max_pairs and len(res) >= max_pairs:
+                return res
 
     return res
 
@@ -287,22 +296,31 @@ def compute_pair_representations(
     dim_size=768,
     n_layers=13,
     device="cpu",
-    left_lang="en",
-    right_lang="de",
+    left_lang=None,
+    right_lang=None,
+    left_lang_id=None,
+    right_lang_id=None,
     split_type="wordpiece",
     universal_tokenizer=None,
     mask_word=False,
 ):
     model.eval()
-    model.to(device)
+    if device is not None:
+        model.to(device)
 
     left_embeddings = torch.zeros((n_layers, len(pairs), dim_size), device="cpu")
     right_embeddings = torch.zeros((n_layers, len(pairs), dim_size), device="cpu")
 
-    left_key = find_lang_key_for_mbart_like(tokenizer, left_lang)
-    right_key = find_lang_key_for_mbart_like(tokenizer, right_lang)
+    if left_lang is not None:
+        left_key = find_lang_key_for_mbart_like(tokenizer, left_lang)
+    else:
+        left_key = None
+    if right_lang is not None:
+        right_key = find_lang_key_for_mbart_like(tokenizer, right_lang)
+    else:
+        right_key = None
 
-    for i in tqdm(range(0, len(pairs), batch_size)):
+    for i in range(0, len(pairs), batch_size):
         j = min(i + batch_size, len(pairs))
 
         if mask_word:
@@ -393,9 +411,15 @@ def compute_pair_representations(
                 else {}
             ),
         )
-        inputs = {k: v.to(device) for k, v in batch.items() if k != "offset_mapping"}
+        inputs = {k: v.to(model.device) for k, v in batch.items() if k != "offset_mapping"}
         hidden_repr = compute_model_hidden_reprs(
-            inputs, model, tokenizer, left_lang, device=device, lang_key=left_key
+            inputs,
+            model,
+            tokenizer,
+            left_lang,
+            device=device,
+            lang_key=left_key,
+            lang_id=left_lang_id,
         )
 
         for k, p in enumerate(pairs[i:j]):
@@ -539,9 +563,15 @@ def compute_pair_representations(
                 else {}
             ),
         )
-        inputs = {k: v.to(device) for k, v in batch.items() if k != "offset_mapping"}
+        inputs = {k: v.to(model.device) for k, v in batch.items() if k != "offset_mapping"}
         hidden_repr = compute_model_hidden_reprs(
-            inputs, model, tokenizer, right_lang, device=device, lang_key=right_key
+            inputs,
+            model,
+            tokenizer,
+            right_lang,
+            device=device,
+            lang_key=right_key,
+            lang_id=right_lang_id,
         )
 
         for k, p in enumerate(pairs[i:j]):

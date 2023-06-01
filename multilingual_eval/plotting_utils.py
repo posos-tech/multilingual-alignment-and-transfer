@@ -1,7 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import spearmanr, bootstrap
 
-COLOR_PALETTE = ["#AAC1CD", "#C1B195", "#7F9E96", "#947D6A", "#7D6C7A"]
+COLOR_PALETTE = ["#F5793A", "#A95AA1", "#85C0F9", "#0F2080", "#7D6C7A"]
 
 
 def get_statistics(result):
@@ -14,3 +15,17 @@ def get_statistics(result):
 def plot_with_statistics(x, mean, low, high, color, legend, linestyle="-", alpha=0.3):
     plt.fill_between(x, low, high, edgecolor=color, facecolor=color, alpha=alpha)
     plt.plot(x, mean, color=color, linestyle=linestyle, label=legend)
+
+
+def spearman_with_bootstrap_ci(x, y, n_resamples=2_000, ci=0.95):
+    return bootstrap(
+        (
+            x,
+            y,
+        ),
+        lambda x, y, axis=0: spearmanr(x, y, axis=axis)[0],
+        n_resamples=n_resamples,
+        confidence_level=ci,
+        paired=True,
+        vectorized=False,
+    )
