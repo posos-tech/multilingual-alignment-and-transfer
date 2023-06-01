@@ -1,3 +1,8 @@
+"""
+Script to generate Figure 1 of paper
+It requires the csv ouput of scripts/2023_acl/controlled_realignment.py
+"""
+
 import os
 import sys
 from collections import defaultdict
@@ -16,11 +21,11 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_files", nargs="+")
-    parser.add_argument("--output_file", type=str, default=None)
-    parser.add_argument("--tasks", type=str, nargs="+", default=["udpos", "xnli"])
-    parser.add_argument("--lang", type=str, default="ar")
-    parser.add_argument("--method", type=str, default="before_dico")
+    parser.add_argument("csv_files", nargs="+", help="List of CSV files containing results of scripts/2023_acl/controlled_realignment.py")
+    parser.add_argument("--output_file", type=str, default=None, help="path of the output file for the figure")
+    parser.add_argument("--tasks", type=str, nargs="+", default=["udpos", "xnli"], help="List of fine-tuning tasks to stack on the figure, (udpos, wikiann and/or xnli)")
+    parser.add_argument("--lang", type=str, default="ar", help="Target language on which cross-lingual transfer is evaluated")
+    parser.add_argument("--method", type=str, default="before_dico", help="Realignment method compared with plain finetuning, before/during_fastalign/dico/awesome")
     args = parser.parse_args()
 
     df = pd.concat([pd.read_csv(fname) for fname in args.csv_files])

@@ -775,7 +775,6 @@ def mix_realignment_with_dataset(
     if strategy == "during":
         inject_mapper = DatasetMapperForInjectingRealignmentData(realignment_dataset)
         training_dataset = iterable_task_dataset.map(inject_mapper)
-    # TODO add option with interleave (in distinct batches?...)
     elif strategy == "before":
         training_dataset = IterableDataset(
             enumerate(

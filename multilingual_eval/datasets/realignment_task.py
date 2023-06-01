@@ -530,6 +530,19 @@ def get_multilingual_realignment_dataset(
     return_torch_compatible=True,
     do_interleave_datasets=True,
 ):
+    """
+    Load and prepare (lazily) a realignment dataset based on:
+    - tokenizer
+    - translation_path, the directory where parallel data in pharaoh format (source ||| target) can be found in files of the form "{left_lang}-{right_lang}.tokenized.{split}.txt"
+    - alignment_path, the directory where corresponding alignment typically produced by FastAlign or AWESOME-align can be found in files of the form "{left_lang}-{right_lang}.{split}"
+    - pairs: list of tuples of source-target language pairs
+    - max_length
+    - seed: seed for shuffling the dataset
+    - lang_to_id: an optional dictionary to attribute ids to different languages (a default one will be computed otherwise)
+    - split: (deprecated) specifies the split of the alignment dataset (cf. translation and alignment file formats)
+    - return_torch_compatible: whether to convert the dataset into a pytorch-compatible one
+    - do_interleave_datasets: True to interleave all datasets and False to return a list of datasets (one for each language pair)
+    """
     lang_to_id = lang_to_id or defaultdict(lambda: None)
     datasets = [
         get_realignment_dataset_for_one_pair(

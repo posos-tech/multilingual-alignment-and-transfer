@@ -73,19 +73,29 @@ def realignment_training_loop(
     - nb_realignment_steps_before: if set, number of realignment batches to see before fine-tuning, otherwise it is n_epochs times the number of fine-tuning batch.
         Only taken into account if strategy is "before", "before+during" or "after"
     - realignment_batch_size: batch size of the realignment step
+    - learning_rate: learning rate for both fine-tuning and realignment
     - n_epochs: number of epochs for the fine-tuning task
     - accumulation_steps: number of accumulation steps for the fine-tuning task
     - logging_steps: int, default 100, number of steps (in term of optimization steps, hence nb of batch / accumulation steps) between each log of training stats
-    - log_in_wandb: whether to log training stats in wandb (conditional import)
+    - log_in_wandb: (deprecated) whether to log training stats in wandb (conditional import), better to use result_store with loggers.WandbResultStore
+    - result_store: an instance of loggers.DefaultResultStore that captures the different results obtained along the training (by default it logs them to the console, but it can store them in
+        a dictionary for later retrieval)
     - metric_fn: function that gets the metric from the overall predictions and labels
     - realignment_coef: float, default 0.1, the coefficient to apply to the realignment loss
     - realignment_coef_scheduler: a function that takes an integer (the epoch) and return a float, the coefficient to apply to the realignment loss at
         given epochs, overrides realignment_coef
     - data_collator: default None, if None, will default to DataCollatorForTokenClassification(tokenizer)
-    - hash_args: default None, optional string to add to hashing realigned models (only with before strategy), will cache only if it is provided (ideally with model name, id for realignment dataset and commit hash)
+    - seed
+    - epoch_callbacks: (deprecated) optional list of function that takes the model as input and will be called before the first fine-tuning epoch and after each one
+    - realignment_step_callbacks: (deprecated) like epoch_callbacks but for each realignment step
+    - hash_args: (deprecated) default None, optional string to add to hashing realigned models (only with before strategy), will cache only if it is provided (ideally with model name, id for realignment dataset and commit hash)
         and if cache_dir is provided
     - cache_dir: default None, optional directory for caching models
     - return_model_hash: default False, whether to return the model hash for model saved after realignment (not fine-tuning !!!) useful only if hash_args and cache_dir are specified and if strategy == "before"
+    - final_prefix: prefix for metrics in the final evaluation
+    - pretrained_model_fn: (deprecated) when the model is cached, function to instantiate the pretrained model from cache_path
+    - realignment_steps_by_finetuning: number of realignment optimization steps to perform by fine-tuning steps (useful in 'during' strategy)
+    - label_key: (deprecated) the key for the labels in the training input
     """
     data_collator = data_collator or DataCollatorForTokenClassification(tokenizer)
     epoch_callbacks = epoch_callbacks or []

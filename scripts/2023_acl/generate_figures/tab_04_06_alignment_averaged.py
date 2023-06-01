@@ -1,3 +1,8 @@
+"""
+Script plot accuracy brought by various realignment methods (or the baseline) on various fine-tuning tasks averaged over languages
+It requires the csv ouput of scripts/2023_acl/controlled_realignment.py
+"""
+
 import pandas as pd
 import numpy as np
 from collections import defaultdict
@@ -7,8 +12,8 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_files", nargs="+")
-    parser.add_argument("--tasks", type=str, nargs="+", default=None)
+    parser.add_argument("csv_files", nargs="+", help="List of CSV files containing results of scripts/2023_acl/controlled_realignment.py")
+    parser.add_argument("--tasks", type=str, nargs="+", default=None, help="List of fine-tuning tasks to show on the table, (udpos, wikiann and/or xnli)")
     parser.add_argument("--models", 
         type=str,
         nargs="+", 
@@ -17,7 +22,7 @@ if __name__ == "__main__":
             "bert-base-multilingual-cased", 
             "xlm-roberta-base", 
             "xlm-roberta-large"
-        ]
+        ], help="Paths of the models (HuggingFace or local directory) to evaluate"
     )
     parser.add_argument(
         "--strategies",
@@ -31,7 +36,7 @@ if __name__ == "__main__":
             "during_fastalign",
             "during_awesome",
             "during_dico",
-        ],
+        ], help="Realignment strategies to show on the table"
     )
     args = parser.parse_args()
 

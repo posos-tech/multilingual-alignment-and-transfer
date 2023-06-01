@@ -27,6 +27,9 @@ from multilingual_eval.models.with_realignment_factory import (
 
 
 def get_dataset_fn(name, zh_segmenter=None):
+    """
+    Function that returns a function allowing to obtain a given fine-tuning dataset
+    """
     return {
         "wikiann": lambda *args, **kwargs: get_wikiann_ner(
             *args, **kwargs, zh_segmenter=zh_segmenter, resegment_zh=zh_segmenter is not None
@@ -62,6 +65,10 @@ def get_model_class_for_dataset_with_realignment(name):
 
 
 def model_fn(task_name, with_realignment=False):
+    """
+    Get the model with the right head for the fine-tuning task
+    and the right head for realignment
+    """
     if with_realignment:
         token_classification = AutoModelForTokenClassificationWithRealignment
         sequence_classification = AutoModelForSequenceClassificationWithRealignment
@@ -107,7 +114,7 @@ def model_fn_with_adapter(task_name, langs=None, n_layers=1):
 
         model.add_adapter("task", config=PfeifferConfig())
 
-        # TODO verify the naming convention for head
+        # verify the naming convention for head
         if task_name == "wikiann":
             model.add_tagging_head("task", num_labels=7, overwrite_ok=True, layers=n_layers)
         elif task_name in ["udpos", "xtreme.udpos"]:

@@ -1,3 +1,9 @@
+"""
+Script to plot cross-lingual generalization versus alignment across several languages, models and seeds
+It requires the csv output of scripts/2023_acl/finetuning_and_alignment.py
+"""
+
+
 import os
 import sys
 from collections import defaultdict
@@ -20,14 +26,14 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_files", nargs="+")
-    parser.add_argument("--output_file", type=str, default=None)
-    parser.add_argument("--task", type=str, default="xnli")
-    parser.add_argument("--layer", default=-1, help="positive or negative index of layer (-1 indicates last)")
-    parser.add_argument("--moment", choices=["before", "after"], default="after")
-    parser.add_argument("--direction", choices=["fwd", "bwd"], default="fwd")
-    parser.add_argument("--langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"])
-    parser.add_argument("--cache_dir", type=str, default=None)
+    parser.add_argument("csv_files", nargs="+", help="List of CSV files containing results of scripts/2023_acl/finetuning_and_alignment.py")
+    parser.add_argument("--output_file", type=str, default=None, help="path of the output file for the figure")
+    parser.add_argument("--task", type=str, default="xnli", help="Fine-tuning task to use (udpos, wikiann or xnli)")
+    parser.add_argument("--layer", default=-1, help="Positive or negative index of layer (-1 indicates last)")
+    parser.add_argument("--moment", choices=["before", "after"], default="after", help="Whether use alignment measured before or after fine-tuning")
+    parser.add_argument("--direction", choices=["fwd", "bwd"], default="fwd", help="Whether to use source-target alignment (fwd) or target-source (bwd)")
+    parser.add_argument("--langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"], help="List of target languages")
+    parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory for models and tokenizers")
     args = parser.parse_args()
 
     task = args.task

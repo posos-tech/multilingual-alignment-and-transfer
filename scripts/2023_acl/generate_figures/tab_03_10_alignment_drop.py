@@ -1,3 +1,8 @@
+"""
+Script to print the table of relative drop in alignment after fine-tuning for a specific task
+It requires the csv output of scripts/2023_acl/finetuning_and_alignment.py
+"""
+
 import os
 import sys
 
@@ -14,11 +19,11 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_files", nargs="+")
-    parser.add_argument("--langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"])
-    parser.add_argument("--tasks", type=str, nargs="+", default=["udpos", "wikiann", "xnli"])
+    parser.add_argument("csv_files", nargs="+", help="List of CSV files containing results of scripts/2023_acl/finetuning_and_alignment.py")
+    parser.add_argument("--langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"], help="List of target languages")
+    parser.add_argument("--tasks", type=str, nargs="+", default=["udpos", "wikiann", "xnli"], help="List of fine-tuning tasks to stack on the table, (udpos, wikiann and/or xnli)")
     parser.add_argument("--with_std", action="store_true", dest="with_std", help="Option to add standard deviation in table")
-    parser.add_argument("--cache_dir", type=str, default=None)
+    parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory for models and tokenizers")
     parser.set_defaults(with_std=False)
     args = parser.parse_args()
 

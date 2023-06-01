@@ -1,3 +1,8 @@
+"""
+Script to produce bar plot of alignment measured at each layer before and after fine-tuning for a specific task
+It requires the csv output of scripts/2023_acl/finetuning_and_alignment.py
+"""
+
 import os
 import sys
 from collections import defaultdict
@@ -17,13 +22,13 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_files", nargs="+")
-    parser.add_argument("--output_file", type=str, default=None)
-    parser.add_argument("--task", type=str, default="udpos")
-    parser.add_argument("--direction", choices=["fwd", "bwd"], default="fwd")
-    parser.add_argument("--lang", type=str, default="ar")
-    parser.add_argument("--model", type=str, default="distilbert-base-multilingual-cased")
-    parser.add_argument("--cache_dir", type=str, default=None)
+    parser.add_argument("csv_files", nargs="+", help="List of CSV files containing results of scripts/2023_acl/finetuning_and_alignment.py")
+    parser.add_argument("--output_file", type=str, default=None, help="path of the output file for the figure")
+    parser.add_argument("--task", type=str, default="udpos", help="Fine-tuning task to use (udpos, wikiann or xnli)")
+    parser.add_argument("--direction", choices=["fwd", "bwd"], default="fwd", help="Whether to use source-target alignment (fwd) or target-source (bwd)")
+    parser.add_argument("--lang", type=str, default="ar", help="Target language for alignment")
+    parser.add_argument("--model", type=str, default="distilbert-base-multilingual-cased", help="Path of the model (HuggingFace)")
+    parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory for models and tokenizers")
     args = parser.parse_args()
 
     task = args.task

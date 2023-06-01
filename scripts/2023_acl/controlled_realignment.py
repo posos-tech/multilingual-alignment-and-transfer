@@ -1,3 +1,8 @@
+"""
+Script to compare different realignment methods with simple fine-tuning
+"""
+
+
 import os
 import sys
 import logging
@@ -20,7 +25,6 @@ from multilingual_eval.training.wandb_utils import (
     store_dicts_in_csv,
 )
 from multilingual_eval.training.training_loops import realignment_training_loop
-from multilingual_eval.training.evaluation_loops import evaluate_xquad
 from multilingual_eval.training.batch_sizes import get_batch_size
 from multilingual_eval.datasets.dispatch_datasets import (
     get_dataset_fn,
@@ -58,31 +62,27 @@ def train(
     else:
         method, aligner = method.split("_")
 
+    # result_store allows to gather information along the experiment
+    # By default, only logs them in the console
     result_store = result_store or DefaultResultStore()
 
-    if seed in seeds[5:]:
-        logging.error(
-            f"Not a seed we want to run, because we limit ourselves to 5, otherwise we won't have time to run everything"
-        )
-        return
-
-    string_to_hash_for_caching = f"v1.0\nleft_lang={left_lang}\nright_langs={'-'.join(sorted(right_langs))}\nseed={seed}\nmodel_name={model_name}\ndebug={debug}"
-
+    # Compute batch size and gradient accumulation from real batch size (32)
+    # and an empirical batch size based on the model name
     cumul_batch_size = 32
     batch_size = get_batch_size(model_name, cumul_batch_size, large_gpu=large_gpu)
     accumulation_steps = cumul_batch_size // batch_size
 
     realignment_batch_size = 16
 
-    string_to_hash_for_caching += f"\nrealignment_batch_size={realignment_batch_size}"
-
     assert cumul_batch_size % batch_size == 0
 
+    # Compute caching directory for HuggingFace datasets and models 
     data_cache_dir = os.path.join(cache_dir, "datasets") if cache_dir is not None else cache_dir
     model_cache_dir = (
         os.path.join(cache_dir, "transformers") if cache_dir is not None else cache_dir
     )
 
+    # Instantiate tokenizer, model and set the seed
     tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=model_cache_dir)
     set_seed(seed)
     if method == "baseline":
@@ -101,6 +101,7 @@ def train(
 
     logging.debug(model)
 
+    # Load fine-tuning dataset
     training_dataset = get_dataset_fn(task_name, zh_segmenter=zh_segmenter)(
         left_lang,
         tokenizer,
@@ -109,6 +110,7 @@ def train(
         datasets_cache_dir=data_cache_dir,
     )
 
+    # Load test dataset for target languages
     validation_datasets = get_dataset_fn(task_name, zh_segmenter=zh_segmenter)(
         right_langs,
         tokenizer,
@@ -118,6 +120,7 @@ def train(
         interleave=False,
     )
 
+    # Load test dataset for source language
     source_validation_dataset = get_dataset_fn(task_name, zh_segmenter=zh_segmenter)(
         left_lang,
         tokenizer,
@@ -126,27 +129,26 @@ def train(
         datasets_cache_dir=data_cache_dir,
     )
 
+    # Load realignment datatset
     lang_pairs = [(left_lang, right_lang) for right_lang in right_langs]
     if aligner == "fastalign":
         alignment_dataset = get_multilingual_realignment_dataset(
             tokenizer, translation_dir, fastalign_dir, lang_pairs, max_length=96, seed=seed
         )
-        string_to_hash_for_caching += f"\nalignment_dir={fastalign_dir}"
     elif aligner == "dico":
         alignment_dataset = get_multilingual_realignment_dataset(
             tokenizer, translation_dir, dico_dir, lang_pairs, max_length=96, seed=seed
         )
-        string_to_hash_for_caching += f"\nalignment_dir={dico_dir}"
     elif aligner == "awesome":
         alignment_dataset = get_multilingual_realignment_dataset(
             tokenizer, translation_dir, awesome_dir, lang_pairs, max_length=96, seed=seed
         )
-        string_to_hash_for_caching += f"\nalignment_dir={awesome_dir}"
     elif aligner is None:
         alignment_dataset = None
     else:
         raise KeyError(aligner)
 
+    # perform realignment and fine-tuning
     realignment_training_loop(
         tokenizer,
         model,
@@ -169,18 +171,6 @@ def train(
         metric_fn=get_dataset_metric_fn(task_name)(),
         data_collator=collator_fn(task_name)(tokenizer),
     )
-
-    if task_name in ["xquad"]:
-        evaluate_xquad(
-            model,
-            tokenizer,
-            left_lang,
-            right_langs,
-            batch_size=batch_size,
-            debug=debug,
-            data_cache_dir=data_cache_dir,
-            result_store=result_store,
-        )
 
 
 if __name__ == "__main__":
@@ -231,20 +221,20 @@ if __name__ == "__main__":
         ],
     )
     parser.add_argument("--tasks", nargs="+", type=str, default=["wikiann", "udpos", "xnli"])
-    parser.add_argument("--strategies", nargs="+", type=str, default=default_strategies)
-    parser.add_argument("--left_lang", type=str, default="en")
+    parser.add_argument("--strategies", nargs="+", type=str, default=default_strategies, help="Realignment strategies to use, of the form strategy_aligner, with strategy being either before or after and aligner being either dico, fastalign or awesome")
+    parser.add_argument("--left_lang", type=str, default="en", help="Source language for cross-lingual transfer")
     parser.add_argument(
-        "--right_langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"]
+        "--right_langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"], help="Target languages for cross-lingual transfer"
     )
-    parser.add_argument("--cache_dir", type=str, default=None)
-    parser.add_argument("--sweep_id", type=str, default=None)
-    parser.add_argument("--debug", action="store_true", dest="debug")
-    parser.add_argument("--large_gpu", action="store_true", dest="large_gpu")
+    parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory which will contain subdirectories 'transformers' and 'datasets' for caching HuggingFace models and datasets")
+    parser.add_argument("--sweep_id", type=str, default=None, help="If using wandb, useful to restart a sweep or launch several run in parallel for a same sweep")
+    parser.add_argument("--debug", action="store_true", dest="debug", help="Use this to perform a quicker test run with less samples")
+    parser.add_argument("--large_gpu", action="store_true", dest="large_gpu", help="Use this option for 45GB GPUs (less gradient accumulation needed)")
     parser.add_argument("--n_epochs", type=int, default=5)
     parser.add_argument("--n_seeds", type=int, default=5)
-    parser.add_argument("--layers", type=int, default=[-1])
-    parser.add_argument("--output_file", type=str, default=None)
-    parser.add_argument("--use_wandb", action="store_true", dest="use_wandb")
+    parser.add_argument("--layers", type=int, nargs="+", default=[-1], help="The layer (or list of layers) on which we want to perform realignment (default -1 for the last one)")
+    parser.add_argument("--output_file", type=str, default=None, help="The path to the output CSV file containing results (used only if wandb is not use, which is the case by default)")
+    parser.add_argument("--use_wandb", action="store_true", dest="use_wandb", help="Use this option to use wandb (but must be installed first)")
     parser.set_defaults(debug=False, large_gpu=False, use_wandb=False)
     args = parser.parse_args()
 
@@ -255,6 +245,7 @@ if __name__ == "__main__":
     if not args.use_wandb:
         os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
 
+    # Config with all the different values of run parameters
     sweep_config = {
         "method": "grid",
         "parameters": {
@@ -270,7 +261,7 @@ if __name__ == "__main__":
             :1
         ]
 
-    with StanfordSegmenter() as zh_segmenter:
+    with StanfordSegmenter() as zh_segmenter: # Calls Stanford Segmenter in another process, hence the context manager
         if args.use_wandb:
             import wandb
 
@@ -308,6 +299,7 @@ if __name__ == "__main__":
         else:
             datasets.disable_progress_bar()
             results = []
+            # Looping over all possible configuration of runs provided in sweep_config
             for run_config in imitate_wandb_sweep(sweep_config):
                 result_store = DictResultStore()
                 result_store.log(run_config)
