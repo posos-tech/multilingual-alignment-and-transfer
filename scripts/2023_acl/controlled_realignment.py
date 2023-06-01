@@ -32,7 +32,9 @@ from multilingual_eval.datasets.dispatch_datasets import (
     model_fn,
     collator_fn,
 )
-from multilingual_eval.datasets.realignment_task import get_multilingual_realignment_dataset
+from multilingual_eval.datasets.realignment_task import (
+    get_multilingual_realignment_dataset,
+)
 
 
 def train(
@@ -76,8 +78,10 @@ def train(
 
     assert cumul_batch_size % batch_size == 0
 
-    # Compute caching directory for HuggingFace datasets and models 
-    data_cache_dir = os.path.join(cache_dir, "datasets") if cache_dir is not None else cache_dir
+    # Compute caching directory for HuggingFace datasets and models
+    data_cache_dir = (
+        os.path.join(cache_dir, "datasets") if cache_dir is not None else cache_dir
+    )
     model_cache_dir = (
         os.path.join(cache_dir, "transformers") if cache_dir is not None else cache_dir
     )
@@ -86,7 +90,9 @@ def train(
     tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=model_cache_dir)
     set_seed(seed)
     if method == "baseline":
-        model = model_fn(task_name, with_realignment=False)(model_name, cache_dir=model_cache_dir)
+        model = model_fn(task_name, with_realignment=False)(
+            model_name, cache_dir=model_cache_dir
+        )
     else:
         model = model_fn(task_name, with_realignment=True)(
             model_name,
@@ -133,7 +139,12 @@ def train(
     lang_pairs = [(left_lang, right_lang) for right_lang in right_langs]
     if aligner == "fastalign":
         alignment_dataset = get_multilingual_realignment_dataset(
-            tokenizer, translation_dir, fastalign_dir, lang_pairs, max_length=96, seed=seed
+            tokenizer,
+            translation_dir,
+            fastalign_dir,
+            lang_pairs,
+            max_length=96,
+            seed=seed,
         )
     elif aligner == "dico":
         alignment_dataset = get_multilingual_realignment_dataset(
@@ -141,7 +152,12 @@ def train(
         )
     elif aligner == "awesome":
         alignment_dataset = get_multilingual_realignment_dataset(
-            tokenizer, translation_dir, awesome_dir, lang_pairs, max_length=96, seed=seed
+            tokenizer,
+            translation_dir,
+            awesome_dir,
+            lang_pairs,
+            max_length=96,
+            seed=seed,
         )
     elif aligner is None:
         alignment_dataset = None
@@ -220,21 +236,74 @@ if __name__ == "__main__":
             "distilbert-base-multilingual-cased",
         ],
     )
-    parser.add_argument("--tasks", nargs="+", type=str, default=["wikiann", "udpos", "xnli"])
-    parser.add_argument("--strategies", nargs="+", type=str, default=default_strategies, help="Realignment strategies to use, of the form strategy_aligner, with strategy being either before or after and aligner being either dico, fastalign or awesome")
-    parser.add_argument("--left_lang", type=str, default="en", help="Source language for cross-lingual transfer")
     parser.add_argument(
-        "--right_langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"], help="Target languages for cross-lingual transfer"
+        "--tasks", nargs="+", type=str, default=["wikiann", "udpos", "xnli"]
     )
-    parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory which will contain subdirectories 'transformers' and 'datasets' for caching HuggingFace models and datasets")
-    parser.add_argument("--sweep_id", type=str, default=None, help="If using wandb, useful to restart a sweep or launch several run in parallel for a same sweep")
-    parser.add_argument("--debug", action="store_true", dest="debug", help="Use this to perform a quicker test run with less samples")
-    parser.add_argument("--large_gpu", action="store_true", dest="large_gpu", help="Use this option for 45GB GPUs (less gradient accumulation needed)")
+    parser.add_argument(
+        "--strategies",
+        nargs="+",
+        type=str,
+        default=default_strategies,
+        help="Realignment strategies to use, of the form strategy_aligner, with strategy being either before or after and aligner being either dico, fastalign or awesome",
+    )
+    parser.add_argument(
+        "--left_lang",
+        type=str,
+        default="en",
+        help="Source language for cross-lingual transfer",
+    )
+    parser.add_argument(
+        "--right_langs",
+        type=str,
+        nargs="+",
+        default=["ar", "es", "fr", "ru", "zh"],
+        help="Target languages for cross-lingual transfer",
+    )
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        default=None,
+        help="Cache directory which will contain subdirectories 'transformers' and 'datasets' for caching HuggingFace models and datasets",
+    )
+    parser.add_argument(
+        "--sweep_id",
+        type=str,
+        default=None,
+        help="If using wandb, useful to restart a sweep or launch several run in parallel for a same sweep",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        dest="debug",
+        help="Use this to perform a quicker test run with less samples",
+    )
+    parser.add_argument(
+        "--large_gpu",
+        action="store_true",
+        dest="large_gpu",
+        help="Use this option for 45GB GPUs (less gradient accumulation needed)",
+    )
     parser.add_argument("--n_epochs", type=int, default=5)
     parser.add_argument("--n_seeds", type=int, default=5)
-    parser.add_argument("--layers", type=int, nargs="+", default=[-1], help="The layer (or list of layers) on which we want to perform realignment (default -1 for the last one)")
-    parser.add_argument("--output_file", type=str, default=None, help="The path to the output CSV file containing results (used only if wandb is not use, which is the case by default)")
-    parser.add_argument("--use_wandb", action="store_true", dest="use_wandb", help="Use this option to use wandb (but must be installed first)")
+    parser.add_argument(
+        "--layers",
+        type=int,
+        nargs="+",
+        default=[-1],
+        help="The layer (or list of layers) on which we want to perform realignment (default -1 for the last one)",
+    )
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        default=None,
+        help="The path to the output CSV file containing results (used only if wandb is not use, which is the case by default)",
+    )
+    parser.add_argument(
+        "--use_wandb",
+        action="store_true",
+        dest="use_wandb",
+        help="Use this option to use wandb (but must be installed first)",
+    )
     parser.set_defaults(debug=False, large_gpu=False, use_wandb=False)
     args = parser.parse_args()
 
@@ -257,11 +326,11 @@ if __name__ == "__main__":
     }
 
     if args.debug:
-        sweep_config["parameters"]["seed"]["values"] = sweep_config["parameters"]["seed"]["values"][
-            :1
-        ]
+        sweep_config["parameters"]["seed"]["values"] = sweep_config["parameters"][
+            "seed"
+        ]["values"][:1]
 
-    with StanfordSegmenter() as zh_segmenter: # Calls Stanford Segmenter in another process, hence the context manager
+    with StanfordSegmenter() as zh_segmenter:  # Calls Stanford Segmenter in another process, hence the context manager
         if args.use_wandb:
             import wandb
 

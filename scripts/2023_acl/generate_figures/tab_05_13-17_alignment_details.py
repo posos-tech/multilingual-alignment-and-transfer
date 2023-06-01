@@ -20,19 +20,36 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_files", nargs="+", help="List of CSV files containing results of scripts/2023_acl/controlled_realignment.py")
-    parser.add_argument("--task", type=str, default="udpos", help="Fine-tuning task to show on the table, (udpos, wikiann or xnli)")
-    parser.add_argument("--left_lang", type=str, default="en", help="Source language")
-    parser.add_argument("--right_langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"], help="Target languages")
-    parser.add_argument("--models", 
+    parser.add_argument(
+        "csv_files",
+        nargs="+",
+        help="List of CSV files containing results of scripts/2023_acl/controlled_realignment.py",
+    )
+    parser.add_argument(
+        "--task",
         type=str,
-        nargs="+", 
+        default="udpos",
+        help="Fine-tuning task to show on the table, (udpos, wikiann or xnli)",
+    )
+    parser.add_argument("--left_lang", type=str, default="en", help="Source language")
+    parser.add_argument(
+        "--right_langs",
+        type=str,
+        nargs="+",
+        default=["ar", "es", "fr", "ru", "zh"],
+        help="Target languages",
+    )
+    parser.add_argument(
+        "--models",
+        type=str,
+        nargs="+",
         default=[
-            "distilbert-base-multilingual-cased", 
-            "bert-base-multilingual-cased", 
-            "xlm-roberta-base", 
-            "xlm-roberta-large"
-        ], help="Paths of the models (HuggingFace or local directory) to evaluate"
+            "distilbert-base-multilingual-cased",
+            "bert-base-multilingual-cased",
+            "xlm-roberta-base",
+            "xlm-roberta-large",
+        ],
+        help="Paths of the models (HuggingFace or local directory) to evaluate",
     )
     parser.add_argument(
         "--strategies",
@@ -46,7 +63,8 @@ if __name__ == "__main__":
             "during_fastalign",
             "during_awesome",
             "during_dico",
-        ], help="Realignment strategies to show on the table"
+        ],
+        help="Realignment strategies to show on the table",
     )
     args = parser.parse_args()
 
@@ -119,7 +137,9 @@ if __name__ == "__main__":
             else:
                 df_by_strategy = subdf[(subdf.realignment_strategy == strategy)]
             for i, lang in enumerate(langs):
-                scores = list(df_by_strategy[f"final_eval_{lang}_{task_to_metric[args.task]}"])
+                scores = list(
+                    df_by_strategy[f"final_eval_{lang}_{task_to_metric[args.task]}"]
+                )
                 means[i, j] = np.mean(scores)
                 stds[i, j] = np.std(scores)
 
@@ -131,8 +151,12 @@ if __name__ == "__main__":
                 mean_argmax = np.argmax([0 if np.isnan(m) else m for m in means[i]])
                 is_max = j == mean_argmax
                 is_significant = means[i, j] - means[i, 0] > stds[i, 0]
-                is_significantly_lower = means[i, 0] - means[i, j] > stds[i, 0] and j != 0
-                is_not_significant = not (is_significant or is_significantly_lower) and j != 0
+                is_significantly_lower = (
+                    means[i, 0] - means[i, j] > stds[i, 0] and j != 0
+                )
+                is_not_significant = (
+                    not (is_significant or is_significantly_lower) and j != 0
+                )
                 res += (
                     " & "
                     + (
@@ -152,4 +176,3 @@ if __name__ == "__main__":
         res += "\\hline\n"
 
     print(res)
-

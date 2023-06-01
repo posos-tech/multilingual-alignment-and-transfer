@@ -22,13 +22,44 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_files", nargs="+", help="List of CSV files containing results of scripts/2023_acl/finetuning_and_alignment.py")
-    parser.add_argument("--output_file", type=str, default=None, help="path of the output file for the figure")
-    parser.add_argument("--task", type=str, default="udpos", help="Fine-tuning task to use (udpos, wikiann or xnli)")
-    parser.add_argument("--direction", choices=["fwd", "bwd"], default="fwd", help="Whether to use source-target alignment (fwd) or target-source (bwd)")
-    parser.add_argument("--lang", type=str, default="ar", help="Target language for alignment")
-    parser.add_argument("--model", type=str, default="distilbert-base-multilingual-cased", help="Path of the model (HuggingFace)")
-    parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory for models and tokenizers")
+    parser.add_argument(
+        "csv_files",
+        nargs="+",
+        help="List of CSV files containing results of scripts/2023_acl/finetuning_and_alignment.py",
+    )
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        default=None,
+        help="path of the output file for the figure",
+    )
+    parser.add_argument(
+        "--task",
+        type=str,
+        default="udpos",
+        help="Fine-tuning task to use (udpos, wikiann or xnli)",
+    )
+    parser.add_argument(
+        "--direction",
+        choices=["fwd", "bwd"],
+        default="fwd",
+        help="Whether to use source-target alignment (fwd) or target-source (bwd)",
+    )
+    parser.add_argument(
+        "--lang", type=str, default="ar", help="Target language for alignment"
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="distilbert-base-multilingual-cased",
+        help="Path of the model (HuggingFace)",
+    )
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        default=None,
+        help="Cache directory for models and tokenizers",
+    )
     args = parser.parse_args()
 
     task = args.task
@@ -40,7 +71,6 @@ if __name__ == "__main__":
 
     task_to_metric = defaultdict(lambda: "accuracy")
     task_to_metric["wikiann"] = "f1"
-
 
     models = {
         "distilbert-base-multilingual-cased": "distilmBERT",
@@ -77,16 +107,10 @@ if __name__ == "__main__":
     property_names_before.sort(key=lambda x: int(x.split("_")[-1]) + 1)
     layers.sort()
 
-    mean_after = [
-        np.mean(bar_chart_df[c].dropna()) for c in property_names_after
-    ]
-    mean_before = [
-        np.mean(bar_chart_df[c].dropna()) for c in property_names_before
-    ]
+    mean_after = [np.mean(bar_chart_df[c].dropna()) for c in property_names_after]
+    mean_before = [np.mean(bar_chart_df[c].dropna()) for c in property_names_before]
     std_after = [np.std(bar_chart_df[c].dropna()) for c in property_names_after]
-    std_before = [
-        np.std(bar_chart_df[c].dropna()) for c in property_names_before
-    ]
+    std_before = [np.std(bar_chart_df[c].dropna()) for c in property_names_before]
 
     plt.bar(
         layers,

@@ -12,17 +12,29 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_files", nargs="+", help="List of CSV files containing results of scripts/2023_acl/controlled_realignment.py")
-    parser.add_argument("--tasks", type=str, nargs="+", default=None, help="List of fine-tuning tasks to show on the table, (udpos, wikiann and/or xnli)")
-    parser.add_argument("--models", 
+    parser.add_argument(
+        "csv_files",
+        nargs="+",
+        help="List of CSV files containing results of scripts/2023_acl/controlled_realignment.py",
+    )
+    parser.add_argument(
+        "--tasks",
         type=str,
-        nargs="+", 
+        nargs="+",
+        default=None,
+        help="List of fine-tuning tasks to show on the table, (udpos, wikiann and/or xnli)",
+    )
+    parser.add_argument(
+        "--models",
+        type=str,
+        nargs="+",
         default=[
-            "distilbert-base-multilingual-cased", 
-            "bert-base-multilingual-cased", 
-            "xlm-roberta-base", 
-            "xlm-roberta-large"
-        ], help="Paths of the models (HuggingFace or local directory) to evaluate"
+            "distilbert-base-multilingual-cased",
+            "bert-base-multilingual-cased",
+            "xlm-roberta-base",
+            "xlm-roberta-large",
+        ],
+        help="Paths of the models (HuggingFace or local directory) to evaluate",
     )
     parser.add_argument(
         "--strategies",
@@ -36,7 +48,8 @@ if __name__ == "__main__":
             "during_fastalign",
             "during_awesome",
             "during_dico",
-        ], help="Realignment strategies to show on the table"
+        ],
+        help="Realignment strategies to show on the table",
     )
     args = parser.parse_args()
 
@@ -53,7 +66,9 @@ if __name__ == "__main__":
     if args.tasks is None:
         tasks = list(available_tasks)
     else:
-        tasks = sorted(list(set(available_tasks).intersection(args.tasks)), key=args.tasks.index)
+        tasks = sorted(
+            list(set(available_tasks).intersection(args.tasks)), key=args.tasks.index
+        )
 
     def get_strategy_name(model_name, strategy):
         if strategy == "baseline":
@@ -98,12 +113,16 @@ if __name__ == "__main__":
 
         model_name = existing_models.get(model, model)
 
-        relevant_strategies = list(set(strategies).intersection(subdf["method"].unique()))
+        relevant_strategies = list(
+            set(strategies).intersection(subdf["method"].unique())
+        )
 
         means = np.zeros((len(relevant_strategies), len(tasks)))
         stds = np.zeros((len(relevant_strategies), len(tasks)))
 
-        for i, strategy in enumerate(sorted(relevant_strategies, key=strategy_to_rank.__getitem__)):
+        for i, strategy in enumerate(
+            sorted(relevant_strategies, key=strategy_to_rank.__getitem__)
+        ):
 
             subsubdf = subdf[subdf.method == strategy]
 
@@ -121,7 +140,9 @@ if __name__ == "__main__":
                 means[i, j] = mean
                 stds[i, j] = std
 
-        for i, strategy in enumerate(sorted(relevant_strategies, key=strategy_to_rank.__getitem__)):
+        for i, strategy in enumerate(
+            sorted(relevant_strategies, key=strategy_to_rank.__getitem__)
+        ):
 
             res += f"{get_strategy_name(model_name, strategy)} "
 

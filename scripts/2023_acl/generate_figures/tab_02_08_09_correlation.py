@@ -21,11 +21,37 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_files", nargs="+", help="List of CSV files containing results of scripts/2023_acl/finetuning_and_alignment.py")
-    parser.add_argument("--tasks", type=str, nargs="+", default=["udpos", "wikiann", "xnli"], help="List of fine-tuning tasks to stack on the table, (udpos, wikiann and/or xnli)")
-    parser.add_argument("--langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"], help="List of target languages")
-    parser.add_argument("--with_ci", action="store_true", dest="with_ci", help="Option to include confidence interval in table")
-    parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory for models and tokenizers")
+    parser.add_argument(
+        "csv_files",
+        nargs="+",
+        help="List of CSV files containing results of scripts/2023_acl/finetuning_and_alignment.py",
+    )
+    parser.add_argument(
+        "--tasks",
+        type=str,
+        nargs="+",
+        default=["udpos", "wikiann", "xnli"],
+        help="List of fine-tuning tasks to stack on the table, (udpos, wikiann and/or xnli)",
+    )
+    parser.add_argument(
+        "--langs",
+        type=str,
+        nargs="+",
+        default=["ar", "es", "fr", "ru", "zh"],
+        help="List of target languages",
+    )
+    parser.add_argument(
+        "--with_ci",
+        action="store_true",
+        dest="with_ci",
+        help="Option to include confidence interval in table",
+    )
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        default=None,
+        help="Cache directory for models and tokenizers",
+    )
     parser.set_defaults(with_ci=False)
     args = parser.parse_args()
 
@@ -99,9 +125,13 @@ if __name__ == "__main__":
                     / subdf[f"final_eval_same_{task_to_metric[task]}"]
                 )
 
-        rho_fwd_before, p_fwd_before = spearmanr(alignment_scores_fwd_before, delta_scores)
+        rho_fwd_before, p_fwd_before = spearmanr(
+            alignment_scores_fwd_before, delta_scores
+        )
         rho_fwd_after, p_fwd_after = spearmanr(alignment_scores_fwd_after, delta_scores)
-        rho_bwd_before, p_bwd_before = spearmanr(alignment_scores_bwd_before, delta_scores)
+        rho_bwd_before, p_bwd_before = spearmanr(
+            alignment_scores_bwd_before, delta_scores
+        )
         rho_bwd_after, p_bwd_after = spearmanr(alignment_scores_bwd_after, delta_scores)
 
         if args.with_ci:
@@ -142,9 +172,6 @@ if __name__ == "__main__":
                 + f"{rho_bwd_after:.2f} \\\\\n"
             )
 
-
-        
-
         alignment_scores_fwd_before = []
         alignment_scores_fwd_after = []
         alignment_scores_bwd_before = []
@@ -178,9 +205,13 @@ if __name__ == "__main__":
                     / subdf[f"final_eval_same_{task_to_metric[task]}"]
                 )
 
-        rho_fwd_before, p_fwd_before = spearmanr(alignment_scores_fwd_before, delta_scores)
+        rho_fwd_before, p_fwd_before = spearmanr(
+            alignment_scores_fwd_before, delta_scores
+        )
         rho_fwd_after, p_fwd_after = spearmanr(alignment_scores_fwd_after, delta_scores)
-        rho_bwd_before, p_bwd_before = spearmanr(alignment_scores_bwd_before, delta_scores)
+        rho_bwd_before, p_bwd_before = spearmanr(
+            alignment_scores_bwd_before, delta_scores
+        )
         rho_bwd_after, p_bwd_after = spearmanr(alignment_scores_bwd_after, delta_scores)
 
         if args.with_ci:
@@ -223,4 +254,3 @@ if __name__ == "__main__":
             res += "\\hline\n"
 
     print(res)
-

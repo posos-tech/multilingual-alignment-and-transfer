@@ -79,8 +79,10 @@ def train(
 
     assert cumul_batch_size % batch_size == 0
 
-    # Compute caching directory for HuggingFace datasets and models 
-    data_cache_dir = os.path.join(cache_dir, "datasets") if cache_dir is not None else cache_dir
+    # Compute caching directory for HuggingFace datasets and models
+    data_cache_dir = (
+        os.path.join(cache_dir, "datasets") if cache_dir is not None else cache_dir
+    )
     model_cache_dir = (
         os.path.join(cache_dir, "transformers") if cache_dir is not None else cache_dir
     )
@@ -89,15 +91,21 @@ def train(
     if tokenizers is None:
         tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=model_cache_dir)
     else:
-        tokenizer_name = tokenizers[sweep_config["parameters"]["model"]["values"].index(model_name)]
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=model_cache_dir)
+        tokenizer_name = tokenizers[
+            sweep_config["parameters"]["model"]["values"].index(model_name)
+        ]
+        tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer_name, cache_dir=model_cache_dir
+        )
     set_seed(seed)
     if from_scratch:
         model = model_fn_from_scratch(task_name, with_realignment=False)(
             model_name, cache_dir=model_cache_dir
         )
     else:
-        model = model_fn(task_name, with_realignment=False)(model_name, cache_dir=model_cache_dir)
+        model = model_fn(task_name, with_realignment=False)(
+            model_name, cache_dir=model_cache_dir
+        )
 
     n_layers = get_nb_layers(model)
 
@@ -136,7 +144,9 @@ def train(
     # sentence is translated in all the target languages)
     # multiparallel option was not used in the scope of the ACL Findings paper
     evaluation_fn = (
-        evaluate_multiparallel_alignment if multiparallel else evaluate_alignment_for_pairs
+        evaluate_multiparallel_alignment
+        if multiparallel
+        else evaluate_alignment_for_pairs
     )
 
     # Evaluate alignment before
@@ -160,7 +170,9 @@ def train(
     model.to("cpu")
 
     res = {}
-    for right_lang, scores_fwd, scores_bwd in zip(right_langs, scores_before_fwd, score_before_bwd):
+    for right_lang, scores_fwd, scores_bwd in zip(
+        right_langs, scores_before_fwd, score_before_bwd
+    ):
         for layer, fwd, bwd in zip(eval_layers, scores_fwd, scores_bwd):
             res[f"alignment_before_fwd_{right_lang}_{layer}"] = fwd
             res[f"alignment_before_bwd_{right_lang}_{layer}"] = bwd
@@ -206,7 +218,9 @@ def train(
     model.to("cpu")
 
     res = {}
-    for right_lang, scores_fwd, scores_bwd in zip(right_langs, scores_after_fwd, score_after_bwd):
+    for right_lang, scores_fwd, scores_bwd in zip(
+        right_langs, scores_after_fwd, score_after_bwd
+    ):
         for layer, fwd, bwd in zip(eval_layers, scores_fwd, scores_bwd):
             res[f"alignment_after_fwd_{right_lang}_{layer}"] = fwd
             res[f"alignment_after_bwd_{right_lang}_{layer}"] = bwd
@@ -217,8 +231,16 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("translation_dir", type=str, help="Directory where the parallel dataset can be found, expecting to contain files of the form {source_lang}-{target_lang}.tokenized.train.txt")
-    parser.add_argument("alignment_dir", type=str, help="Directory where the alignment pairs can be found, expecting to contain files of the form {source_lang}-{target_lang}.train")
+    parser.add_argument(
+        "translation_dir",
+        type=str,
+        help="Directory where the parallel dataset can be found, expecting to contain files of the form {source_lang}-{target_lang}.tokenized.train.txt",
+    )
+    parser.add_argument(
+        "alignment_dir",
+        type=str,
+        help="Directory where the alignment pairs can be found, expecting to contain files of the form {source_lang}-{target_lang}.train",
+    )
     parser.add_argument(
         "--models",
         nargs="+",
@@ -230,24 +252,87 @@ if __name__ == "__main__":
             "xlm-roberta-large",
         ],
     )
-    parser.add_argument("--tokenizers", nargs="+", type=str, default=None, help="List of tokenizer slugs that can be provided to override --models when instantiating with AutoTokenizer")
-    parser.add_argument("--tasks", nargs="+", type=str, default=["wikiann", "udpos", "xnli"])
+    parser.add_argument(
+        "--tokenizers",
+        nargs="+",
+        type=str,
+        default=None,
+        help="List of tokenizer slugs that can be provided to override --models when instantiating with AutoTokenizer",
+    )
+    parser.add_argument(
+        "--tasks", nargs="+", type=str, default=["wikiann", "udpos", "xnli"]
+    )
     parser.add_argument("--left_lang", type=str, default="en", help="Source language")
     parser.add_argument(
-        "--right_langs", type=str, nargs="+", default=["ar", "es", "fr", "ru", "zh"], help="Target languages"
+        "--right_langs",
+        type=str,
+        nargs="+",
+        default=["ar", "es", "fr", "ru", "zh"],
+        help="Target languages",
     )
-    parser.add_argument("--eval_layers", type=int, nargs="+", default=None, help="List of (indexed) layers of which the alignment must be evaluated (default: all layers)")
-    parser.add_argument("--cache_dir", type=str, default=None,help="Cache directory which will contain subdirectories 'transformers' and 'datasets' for caching HuggingFace models and datasets")
-    parser.add_argument("--sweep_id", type=str, default=None, help="If using wandb, useful to restart a sweep or launch several run in parallel for a same sweep")
-    parser.add_argument("--debug", action="store_true", dest="debug", dest="debug", help="Use this to perform a quicker test run with less samples")
-    parser.add_argument("--large_gpu", action="store_true", dest="large_gpu", help="Use this option for 45GB GPUs (less gradient accumulation needed)")
+    parser.add_argument(
+        "--eval_layers",
+        type=int,
+        nargs="+",
+        default=None,
+        help="List of (indexed) layers of which the alignment must be evaluated (default: all layers)",
+    )
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        default=None,
+        help="Cache directory which will contain subdirectories 'transformers' and 'datasets' for caching HuggingFace models and datasets",
+    )
+    parser.add_argument(
+        "--sweep_id",
+        type=str,
+        default=None,
+        help="If using wandb, useful to restart a sweep or launch several run in parallel for a same sweep",
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        dest="debug",
+        help="Use this to perform a quicker test run with less samples",
+    )
+    parser.add_argument(
+        "--large_gpu",
+        action="store_true",
+        dest="large_gpu",
+        help="Use this option for 45GB GPUs (less gradient accumulation needed)",
+    )
     parser.add_argument("--n_seeds", type=int, default=5)
     parser.add_argument("--n_epochs", type=int, default=5)
-    parser.add_argument("--strong_alignment", action="store_true", dest="strong_alignment", help="Option to use strong alignment instead of weak for evaluation")
-    parser.add_argument("--multiparallel", action="store_true", dest="multiparallel", help="Option to use when the translation dataset is multiparallel (not used in the paper)")
-    parser.add_argument("--from_scratch", action="store_true", dest="from_scratch", help="Option to use when we want to instantiate the models with random weights instead of pre-trained ones")
-    parser.add_argument("--output_file", type=str, default=None, help="The path to the output CSV file containing results (used only if wandb is not use, which is the case by default)")
-    parser.add_argument("--use_wandb", action="store_true", dest="use_wandb", help="Use this option to use wandb (but must be installed first)")
+    parser.add_argument(
+        "--strong_alignment",
+        action="store_true",
+        dest="strong_alignment",
+        help="Option to use strong alignment instead of weak for evaluation",
+    )
+    parser.add_argument(
+        "--multiparallel",
+        action="store_true",
+        dest="multiparallel",
+        help="Option to use when the translation dataset is multiparallel (not used in the paper)",
+    )
+    parser.add_argument(
+        "--from_scratch",
+        action="store_true",
+        dest="from_scratch",
+        help="Option to use when we want to instantiate the models with random weights instead of pre-trained ones",
+    )
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        default=None,
+        help="The path to the output CSV file containing results (used only if wandb is not use, which is the case by default)",
+    )
+    parser.add_argument(
+        "--use_wandb",
+        action="store_true",
+        dest="use_wandb",
+        help="Use this option to use wandb (but must be installed first)",
+    )
     parser.set_defaults(
         debug=False,
         large_gpu=False,
@@ -275,11 +360,11 @@ if __name__ == "__main__":
     }
 
     if args.debug:
-        sweep_config["parameters"]["seed"]["values"] = sweep_config["parameters"]["seed"]["values"][
-            :1
-        ]
+        sweep_config["parameters"]["seed"]["values"] = sweep_config["parameters"][
+            "seed"
+        ]["values"][:1]
 
-    with StanfordSegmenter() as zh_segmenter: # Calls Stanford Segmenter in another process, hence the context manager
+    with StanfordSegmenter() as zh_segmenter:  # Calls Stanford Segmenter in another process, hence the context manager
         if args.use_wandb:
             import wandb
 

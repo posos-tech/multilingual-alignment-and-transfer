@@ -21,11 +21,36 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("csv_files", nargs="+", help="List of CSV files containing results of scripts/2023_acl/controlled_realignment.py")
-    parser.add_argument("--output_file", type=str, default=None, help="path of the output file for the figure")
-    parser.add_argument("--tasks", type=str, nargs="+", default=["udpos", "xnli"], help="List of fine-tuning tasks to stack on the figure, (udpos, wikiann and/or xnli)")
-    parser.add_argument("--lang", type=str, default="ar", help="Target language on which cross-lingual transfer is evaluated")
-    parser.add_argument("--method", type=str, default="before_dico", help="Realignment method compared with plain finetuning, before/during_fastalign/dico/awesome")
+    parser.add_argument(
+        "csv_files",
+        nargs="+",
+        help="List of CSV files containing results of scripts/2023_acl/controlled_realignment.py",
+    )
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        default=None,
+        help="path of the output file for the figure",
+    )
+    parser.add_argument(
+        "--tasks",
+        type=str,
+        nargs="+",
+        default=["udpos", "xnli"],
+        help="List of fine-tuning tasks to stack on the figure, (udpos, wikiann and/or xnli)",
+    )
+    parser.add_argument(
+        "--lang",
+        type=str,
+        default="ar",
+        help="Target language on which cross-lingual transfer is evaluated",
+    )
+    parser.add_argument(
+        "--method",
+        type=str,
+        default="before_dico",
+        help="Realignment method compared with plain finetuning, before/during_fastalign/dico/awesome",
+    )
     args = parser.parse_args()
 
     df = pd.concat([pd.read_csv(fname) for fname in args.csv_files])
@@ -63,7 +88,9 @@ if __name__ == "__main__":
     gs = fig.add_gridspec(len(tasks), hspace=0)
     # _ = gs.subplots(sharex=True, sharey=True)
     for i, task in enumerate(tasks):
-        ax = brokenaxes(xlims=((60 - 10, 125 + 10), (345 - 10, 345 + 8)), subplot_spec=gs[i])
+        ax = brokenaxes(
+            xlims=((60 - 10, 125 + 10), (345 - 10, 345 + 8)), subplot_spec=gs[i]
+        )
 
         ax.set(ylim=[0.0, 0.85])
 
@@ -83,7 +110,9 @@ if __name__ == "__main__":
                     existing_models[model],
                     fontsize=11,
                     horizontalalignment="center",
-                    verticalalignment="bottom" if model == "xlm-roberta-base" else "top",
+                    verticalalignment="bottom"
+                    if model == "xlm-roberta-base"
+                    else "top",
                 )
 
             values_without = df[
