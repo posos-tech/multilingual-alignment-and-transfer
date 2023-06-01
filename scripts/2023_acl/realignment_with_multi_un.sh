@@ -2,9 +2,8 @@
 
 set -e
 
-ADD_ARGS=$1
-
-source parameters.sh
+DATA_DIR=$1
+ADD_ARGS=$2
 
 langs="ar es fr ru zh"
 
