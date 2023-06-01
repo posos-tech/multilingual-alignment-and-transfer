@@ -1,0 +1,10 @@
+**/__pycache__/
+parameters.sh
+wandb/
+local_runs/
+venvs/
+OAR.**
+tools/
+.vscode/
+**.nfs**
+experiments/
