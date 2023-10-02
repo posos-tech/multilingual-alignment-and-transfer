@@ -85,7 +85,7 @@ class TrainingState:
 
         nb_realignment_steps_expected = 0
         nb_realignment_samples_expected = 0
-        if strategy == "during":
+        if strategy in ["during", "staged"]:
             nb_realignment_steps_expected = nb_finetuning_steps_expected
             nb_realignment_samples_expected = nb_realignment_steps_expected * realignment_batch_size
         elif strategy in ["before", "after"]:

@@ -261,6 +261,34 @@ def realignment_training_loop(
                 with open(info_path, "w") as f:
                     f.write(hash_args + "\n")
 
+    # Define a function to freeze all layers except the last n
+    def freeze_layers_except_last_n(model, n):
+        layers = list(model.roberta.encoder.layer)
+        for layer in layers[:-n]:
+            for param in layer.parameters():
+                param.requires_grad = False
+
+    # List of layers to be unfrozen, starting from the penultimate layer and moving towards the front
+    layers_to_unfreeze = list(range(len(model.roberta.encoder.layer) - 2, -1, -1))
+
+    print(f'Layers: {layers_to_unfreeze}')
+
+    # Define a function to unfreeze the next layer in the list
+    def unfreeze_next_in_list(model):
+        if layers_to_unfreeze:
+            layer_to_unfreeze = layers_to_unfreeze.pop(0)
+            for param in model.roberta.encoder.layer[layer_to_unfreeze].parameters():
+                param.requires_grad = True
+
+    # Define a function to log the status of each RobertaLayer (frozen or unfrozen)
+    def log_layer_status(model):
+        layers = list(model.roberta.encoder.layer)
+        for i, layer in enumerate(layers):
+            if any(param.requires_grad for param in layer.parameters()):
+                logging.info(f"RobertaLayer {i}: Unfrozen")
+            else:
+                logging.info(f"RobertaLayer {i}: Frozen")
+
     optimizer = Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)
     scheduler = get_scheduler(
         "linear",
@@ -272,6 +300,13 @@ def realignment_training_loop(
     for callback in epoch_callbacks:
         callback(model)
 
+    # If strategy is staged, freeze all layers except the last one
+    if strategy == 'staged':
+        print()
+        print(model)
+        print()
+        freeze_layers_except_last_n(model, 1)
+
     for i in range(n_epochs):
         training_state = epoch_loop(
             model,
@@ -279,7 +314,7 @@ def realignment_training_loop(
             scheduler=scheduler,
             task_dataloader=task_dataloader,
             realignment_dataloader=realignment_dataloader
-            if strategy in ["during", "before+during"]
+            if strategy in ["during", "before+during", "staged"]
             else None,
             task_accumulation_steps=accumulation_steps,
             logging_steps=logging_steps,
@@ -328,6 +363,11 @@ def realignment_training_loop(
                 wandb.log(res)
             if result_store:
                 result_store.log(res)
+
+        # If strategy is staged, unfreeze the next layer after each epoch
+        if strategy == 'staged':
+            unfreeze_next_in_list(model)
+            log_layer_status(model)  # Log the layer status after unfreezing
 
     if strategy == "after":
         after_optimizer = Adam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-8)

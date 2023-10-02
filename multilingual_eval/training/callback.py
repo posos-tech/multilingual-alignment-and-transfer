@@ -144,3 +144,21 @@ def orthogonalize_callback(model):
     of a model (throws an error if it has no mapping)
     """
     model.orthogonalize()
+
+class EarlyStopping:
+    def __init__(self, patience=2, min_delta=0.001):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.best_val_loss = float('inf')
+        self.no_improvement_epochs = 0
+
+    def __call__(self, current_val_loss):
+        if self.best_val_loss - current_val_loss > self.min_delta:
+            self.best_val_loss = current_val_loss
+            self.no_improvement_epochs = 0
+        else:
+            self.no_improvement_epochs += 1
+
+        if self.no_improvement_epochs >= self.patience:
+            return True  # Trigger early stopping
+        return False

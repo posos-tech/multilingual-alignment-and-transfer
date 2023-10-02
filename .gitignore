@@ -8,3 +8,11 @@ tools/
 .vscode/
 **.nfs**
 experiments/
+data/cache/
+data/muse_dictionaries/
+data/opus100
+data/fastalign
+data/awesome-align
+data/awesome-models/
+data/dico-align/
+data/translation/

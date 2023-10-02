@@ -198,7 +198,7 @@ if __name__ == "__main__":
         "baseline",
         *[
             f"{strategy}_{aligner}"
-            for strategy in ["during", "before"]
+            for strategy in ["during", "before", "staged"]
             for aligner in ["fastalign", "dico", "awesome"]
         ],
     ]

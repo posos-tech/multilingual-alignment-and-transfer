@@ -2,12 +2,12 @@
 Tokenize OPUS100 dataset and produce a FastAlign-compatile output 
 """
 
-
 import os
 import sys
 from typing import Optional
 from contextlib import ExitStack
 import logging
+from tqdm import tqdm  # <-- Import tqdm
 
 sys.path.append(os.curdir)
 
@@ -62,7 +62,8 @@ if __name__ == "__main__":
         left_tokenizer = LanguageSpecificTokenizer(lang=left_lang, zh_segmenter=zh_segmenter)
         right_tokenizer = LanguageSpecificTokenizer(lang=right_lang, zh_segmenter=zh_segmenter)
 
-        for left_line, right_line in zip(left_reader, right_reader):
+        # Wrap the zip iterator with tqdm for progress bar
+        for left_line, right_line in tqdm(zip(left_reader, right_reader), total=count_lines(left_lang_file) - start_line, desc="Tokenizing"):
             left_tokens = left_tokenizer.tokenize(left_line)
             right_tokens = right_tokenizer.tokenize(right_line)
 
