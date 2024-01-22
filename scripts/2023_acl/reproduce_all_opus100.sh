@@ -5,7 +5,7 @@ set -e
 DATA_DIR=$1
 ADD_ARGS=$2
 
-langs="ar es fr ru zh"
+langs="ar es fr ru zh af fa hi"
 
 mkdir -p $DATA_DIR
 
@@ -145,8 +145,8 @@ if [ ! -f $RESULT_DIR/controlled_realignment_opus100_tagging.csv ]; then
         --fastalign_dir $FASTALIGN_DIR/opus100 \
         --dico_dir $DICOALIGN_DIR/opus100 \
         --awesome_dir $AWESOME_DIR/opus100 \
-        --strategies freeze_realign_unfreeze_fastalign \
-        --models distilbert-base-multilingual-cased \
+        --strategies before_fastalign \
+        --models xlm-roberta-base \
         --tasks udpos \
         --cache_dir $CACHE_DIR \
         --n_epochs 5 \
