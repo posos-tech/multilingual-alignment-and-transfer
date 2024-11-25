@@ -51,7 +51,7 @@ class StanfordSegmenter:
                 logging.error(f"Got HTTPError with following sentence: {repr(part)}")
                 raise e
             tokens += [
-                token["originalline"] or token["word"]
+                token.get("originalline") or token["word"]
                 for sentence in result["sentences"]
                 for token in sentence["tokens"]
             ]
