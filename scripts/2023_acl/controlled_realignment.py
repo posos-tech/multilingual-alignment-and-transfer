@@ -37,6 +37,7 @@ from multilingual_eval.datasets.dispatch_datasets import (
 from multilingual_eval.datasets.realignment_task import (
     get_multilingual_realignment_dataset,
 )
+from multilingual_eval.training.evaluation_loops import evaluate_xquad
 
 
 def train(
@@ -219,6 +220,19 @@ def train(
         data_collator=collator_fn(task_name)(tokenizer),
         model_name=model_name,
         nb_realignment_steps_before=realignment_steps,
+    )
+
+    if task_name == "xquad":
+        evaluate_xquad(
+            model,
+            tokenizer,
+            left_lang,
+            right_langs,
+            batch_size=batch_size,
+            debug=False,
+            data_cache_dir=data_cache_dir,
+            log_in_wandb=False,
+            result_store=result_store
     )
 
 

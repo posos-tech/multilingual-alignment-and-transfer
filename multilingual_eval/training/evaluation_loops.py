@@ -131,7 +131,7 @@ def evaluate_xquad(
     result_store=None,
 ):
     oracle = QuestionAnsweringPipeline(
-        model=model, tokenizer=tokenizer, device=model.device, batch_size=batch_size
+        model=model, tokenizer=tokenizer, device=model.device.index, batch_size=batch_size
     )
 
     validation_datasets = list(
