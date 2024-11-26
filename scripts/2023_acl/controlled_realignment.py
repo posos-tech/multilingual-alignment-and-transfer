@@ -56,6 +56,7 @@ def train(
     layers=None,
     result_store=None,
     additional_realignment_langs=None,
+    realignment_steps=None,
 ):
     layers = layers or [-1]
     model_name = config["model"]
@@ -216,7 +217,8 @@ def train(
         result_store=result_store,
         metric_fn=get_dataset_metric_fn(task_name)(),
         data_collator=collator_fn(task_name)(tokenizer),
-        model_name=model_name
+        model_name=model_name,
+        nb_realignment_steps_before=realignment_steps,
     )
 
 
@@ -348,6 +350,11 @@ if __name__ == "__main__":
         type=int,
         default=9001
     )
+    parser.add_argument(
+        "--realignment_steps",
+        type=int,
+        default=None
+    )
     parser.add_argument("--project_prefix", type=str, default="")
     parser.set_defaults(debug=False, large_gpu=False, use_wandb=False)
     args = parser.parse_args()
@@ -419,7 +426,8 @@ if __name__ == "__main__":
                     cache_dir=args.cache_dir,
                     n_epochs=args.n_epochs,
                     result_store=result_store,
-                    additional_realignment_langs=args.additional_realignment_langs
+                    additional_realignment_langs=args.additional_realignment_langs,
+                    realignment_steps=args.realignment_steps,
                 ),
                 sweep_config,
                 sweep_id,
@@ -454,5 +462,6 @@ if __name__ == "__main__":
                     n_epochs=args.n_epochs,
                     result_store=result_store,
                     additional_realignment_langs=args.additional_realignment_langs,
+                    realignment_steps=args.realignment_steps,
                 )
                 recorder.add(result_store.get_results())
