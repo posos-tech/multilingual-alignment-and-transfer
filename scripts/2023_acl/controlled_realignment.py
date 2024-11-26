@@ -268,7 +268,7 @@ if __name__ == "__main__":
         ],
     )
     parser.add_argument(
-        "--tasks", nargs="+", type=str, default=["wikiann", "udpos", "xnli"]
+        "--tasks", nargs="+", type=str, default=["wikiann", "udpos", "xnli", "xquad"]
     )
     parser.add_argument(
         "--strategies",
