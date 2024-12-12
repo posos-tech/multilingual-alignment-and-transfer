@@ -7,4 +7,4 @@ tqdm==4.62.2
 datasets==1.16.1
 nltk==3.6.5
 sentencepiece==0.1.99
-protobuf==3.20.0
+protobuf==3.20.2
