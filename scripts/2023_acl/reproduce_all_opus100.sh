@@ -128,7 +128,7 @@ if [ ! -f $RESULT_DIR/controlled_realignment_opus100_tagging.csv ]; then
         --fastalign_dir $FASTALIGN_DIR/opus100 \
         --dico_dir $DICOALIGN_DIR/opus100 \
         --awesome_dir $AWESOME_DIR/opus100 \
-        --tasks udpos \
+        --tasks wikiann udpos \
         --cache_dir $CACHE_DIR \
         --n_epochs 5 \
         --output_file $RESULT_DIR/controlled_realignment_opus100_tagging.csv $ADD_ARGS
