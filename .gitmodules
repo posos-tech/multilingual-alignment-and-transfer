@@ -1,3 +1,0 @@
-[submodule "scripts/2024_emnlp/analysis/lang2vec"]
-	path = scripts/2024_emnlp/analysis/lang2vec
-	url = https://github.com/antonisa/lang2vec.git
