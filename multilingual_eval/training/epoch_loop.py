@@ -12,19 +12,6 @@ from transformers.optimization import get_scheduler
 from multilingual_eval.training.utils import bring_batch_to_model, get_next_or_restart
 from multilingual_eval.training.states import TrainingState
 
-# # Define a function to get the weight multiplier based on the language ID
-# def get_loss_multiplier(lang_id):
-#     # Define the multipliers for each language ID
-#     multipliers = {
-#         0: 0.5,  # en
-#         1: 1.0,  # ar
-#         2: 0.7,  # es
-#         3: 0.7,  # fr
-#         4: 0.8,  # ru
-#         5: 1.5,  # zh
-#     }
-#     return multipliers.get(lang_id, 1.0)  # Default multiplier is 1.0
-
 def epoch_loop(
     model,
     optimizer,
@@ -130,22 +117,9 @@ def epoch_loop(
                             "left_input_ids"
                         ].shape[0]
                         training_state.nb_realignment_steps_seen += 1
-                    
-                    # print()
-                    # print('Realignment Batch')
-                    # print(realignment_batch)
-                    # print()
-
-                    # realignment_batch.pop('left_lang_id', None)
-                    # realignment_batch.pop('right_lang_id', None)
 
                     realignment_batch = bring_batch_to_model(realignment_batch, model)
                     outputs = model(**realignment_batch, return_dict=True)
-
-                    # print()
-                    # print('Outputs')
-                    # print(outputs)
-                    # print()
 
                     realignment_loss += (
                         realignment_coef / realignment_steps_by_finetuning

@@ -127,11 +127,6 @@ def train(
         max_length=96
     )
 
-    # print()
-    # print('fine-tuning dataset')
-    # print(training_dataset[:5])
-    # print()
-
     # Load test dataset for target languages
     validation_datasets = get_dataset_fn(task_name, zh_segmenter=zh_segmenter)(
         right_langs,
@@ -141,12 +136,6 @@ def train(
         datasets_cache_dir=data_cache_dir,
         interleave=False,
     )
-
-    # print()
-    # print('test dataset for target languages')
-    # for dataset in validation_datasets:
-    #     print(dataset[:5])
-    # print()
 
     # Load test dataset for source language
     source_validation_dataset = get_dataset_fn(task_name, zh_segmenter=zh_segmenter)(
@@ -161,11 +150,6 @@ def train(
     for lang, ds in zip(right_langs, validation_datasets):
         print(f"{lang} dataset: {len(ds)}")
 
-    # print()
-    # print('test dataset for source language')
-    # print(source_validation_dataset[:5])
-    # print()
-
     # Load realignment datatset
     lang_pairs = [(left_lang, right_lang) for right_lang in right_langs + (additional_realignment_langs or [])]
     if aligner == "fastalign":
@@ -174,7 +158,6 @@ def train(
             translation_dir,
             fastalign_dir,
             lang_pairs,
-            # lang_to_id={'en':0, 'ar':1, 'es':2, 'fr':3, 'ru':4, 'zh':5},
             max_length=96,
             seed=seed,
         )
@@ -245,7 +228,7 @@ if __name__ == "__main__":
         "baseline",
         *[
             f"{strategy}_{aligner}"
-            for strategy in ["during", "before", "staged"]
+            for strategy in ["during", "before"]
             for aligner in ["fastalign", "dico", "awesome"]
         ],
     ]
@@ -369,7 +352,7 @@ if __name__ == "__main__":
         type=int,
         default=None
     )
-    parser.add_argument("--project_prefix", type=str, default="")
+    parser.add_argument("--project_name", type=str, default="")
     parser.set_defaults(debug=False, large_gpu=False, use_wandb=False)
     args = parser.parse_args()
 
@@ -414,12 +397,7 @@ if __name__ == "__main__":
             result_store = WandbResultStore()
 
             if args.sweep_id is None:
-                # project = args.models[0] + "_" + args.strategies[0] + "_" + args.tasks[0]
-                if "distilbert-base-multilingual-cased" in args.models:
-                    project = "dmb_" + args.project_prefix + args.strategies[0] + "_" + args.tasks[0]
-                else:
-                    project = "3nl_" + args.project_prefix + args.strategies[0] + "_" + args.tasks[0]
-                sweep_id = wandb.sweep(sweep_config, project=project)
+                sweep_id = wandb.sweep(sweep_config, project=args.project_name or None)
             else:
                 sweep_id = args.sweep_id
 
@@ -448,7 +426,7 @@ if __name__ == "__main__":
                 zh_segmenter=zh_segmenter,
             )
 
-            wandb.agent(sweep_id, final_train_fn, project=project)
+            wandb.agent(sweep_id, final_train_fn, project=args.project_name or None)
         else:
             datasets.disable_progress_bar()
             results = []
