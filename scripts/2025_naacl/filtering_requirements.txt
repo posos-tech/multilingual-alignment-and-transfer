@@ -1,3 +1,0 @@
-# Python 3.6
-openkiwi==2.1.0
-"unbabel-comet>=2.1.0"
