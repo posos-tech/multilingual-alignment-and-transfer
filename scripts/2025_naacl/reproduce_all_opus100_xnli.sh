@@ -32,11 +32,53 @@ export FASTALIGN_DIR=$FASTALIGN_DIR
 export DICOALIGN_DIR=$DICOALIGN_DIR
 export AWESOME_DIR=$AWESOME_DIR
 
+python scripts/2023_acl/controlled_realignment.py \
+    --translation_dir $TRANSLATION_DIR/$DATASET \
+    --fastalign_dir $FASTALIGN_DIR/$DATASET \
+    --dico_dir $DICOALIGN_DIR/$DATASET \
+    --awesome_dir $AWESOME_DIR/$DATASET \
+    --strategies baseline \
+    --models $MODEL \
+    --tasks xnli \
+    --cache_dir $CACHE_DIR \
+    --n_epochs 2 \
+    --right_langs $langs \
+    --output_file $RESULT_DIR/${MODEL}__${DATASET}__xnli.csv $ADD_ARGS \
+    --additional_realignment_langs $additional_langs
 
 
-echo ""
-echo "Testing controlled_realignment.py staged-realignment..."
-echo ""
+python scripts/2023_acl/controlled_realignment.py \
+    --translation_dir $TRANSLATION_DIR/$DATASET \
+    --fastalign_dir $FASTALIGN_DIR/$DATASET \
+    --dico_dir $DICOALIGN_DIR/$DATASET \
+    --awesome_dir $AWESOME_DIR/$DATASET \
+    --strategies before_dico \
+    --models $MODEL \
+    --tasks xnli \
+    --cache_dir $CACHE_DIR \
+    --n_epochs 2 \
+    --right_langs $langs \
+    --output_file $RESULT_DIR/${MODEL}__${DATASET}__xnli.csv $ADD_ARGS \
+    --additional_realignment_langs $additional_langs
+
+###########################################
+# PARTIAL-REALIGNMENT BEFORE - BACK FROZEN
+###########################################
+
+/root/miniconda3/envs/align_freeze/bin/python scripts/2023_acl/controlled_realignment.py \
+    --translation_dir $TRANSLATION_DIR/$DATASET \
+    --fastalign_dir $FASTALIGN_DIR/$DATASET \
+    --dico_dir $DICOALIGN_DIR/$DATASET \
+    --awesome_dir $AWESOME_DIR/$DATASET \
+    --strategies freeze_realign_unfreeze_last_half_dico \
+    --models $MODEL \
+    --tasks xnli \
+    --cache_dir $CACHE_DIR \
+    --n_epochs 2 \
+    --right_langs $langs \
+    --output_file $RESULT_DIR/${MODEL}__${DATASET}__xnli.csv $ADD_ARGS  \
+    --additional_realignment_langs $additional_langs
+
 /root/miniconda3/envs/align_freeze/bin/python scripts/2023_acl/controlled_realignment.py \
     --translation_dir $TRANSLATION_DIR/$DATASET \
     --fastalign_dir $FASTALIGN_DIR/$DATASET \
@@ -48,54 +90,6 @@ echo ""
     --cache_dir $CACHE_DIR \
     --n_epochs 2 \
     --right_langs $langs \
-    --project_prefix "34langs_" \
-    --output_file $RESULT_DIR/${MODEL}__xnli__${DATASET}__with_additional.csv $ADD_ARGS \
-    --additional_realignment_langs $additional_langs --seeds 66
-
-
-
-
-
-###########################################
-# PARTIAL-REALIGNMENT BEFORE - BACK FROZEN
-###########################################
-
-
-
-
-# echo ""
-# echo "Testing controlled_realignment.py staged-realignment..."
-# echo ""
-# /root/miniconda3/envs/align_freeze/bin/python scripts/2023_acl/controlled_realignment.py \
-#     --translation_dir $TRANSLATION_DIR/$DATASET \
-#     --fastalign_dir $FASTALIGN_DIR/$DATASET \
-#     --dico_dir $DICOALIGN_DIR/$DATASET \
-#     --awesome_dir $AWESOME_DIR/$DATASET \
-#     --strategies freeze_realign_unfreeze_last_half_dico \
-#     --models $MODEL \
-#     --tasks xnli \
-#     --cache_dir $CACHE_DIR \
-#     --n_epochs 2 \
-#     --right_langs $langs \
-#     --project_prefix "34langs_" \
-#     --output_file $RESULT_DIR/${MODEL}__xnli__${DATASET}__with_additional.csv $ADD_ARGS  \
-#     --additional_realignment_langs $additional_langs
-
-# echo ""
-# echo "Testing controlled_realignment.py staged-realignment..."
-# echo ""
-# /root/miniconda3/envs/align_freeze/bin/python scripts/2023_acl/controlled_realignment.py \
-#     --translation_dir $TRANSLATION_DIR/$DATASET \
-#     --fastalign_dir $FASTALIGN_DIR/$DATASET \
-#     --dico_dir $DICOALIGN_DIR/$DATASET \
-#     --awesome_dir $AWESOME_DIR/$DATASET \
-#     --strategies freeze_realign_unfreeze_dico \
-#     --models $MODEL \
-#     --tasks xnli \
-#     --cache_dir $CACHE_DIR \
-#     --n_epochs 2 \
-#     --right_langs $langs \
-#     --project_prefix "34langs_" \
-#     --output_file $RESULT_DIR/${MODEL}__xnli__${DATASET}__with_additional.csv $ADD_ARGS  \
-#     --additional_realignment_langs $additional_langs
+    --output_file $RESULT_DIR/${MODEL}__${DATASET}__xnli.csv $ADD_ARGS  \
+    --additional_realignment_langs $additional_langs
 
