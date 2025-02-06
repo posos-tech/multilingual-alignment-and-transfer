@@ -36,3 +36,7 @@ bash scripts/2025_naacl/reproduce_all_opus100_udpos.sh <DATA_DIR> opus100 bert-b
 `<DATA_DIR>` must be the same path that you used in the `download.sh` script.
 
 ## Additional content
+
+In `scripts/2025_naacl/filtering`, one can find the code used for filtering the realignment data based on estimated translation quality (Appendix C.1)
+
+In `scripts/2025_naacl/results`, one can find the full results presented in the paper contained in csv files.
